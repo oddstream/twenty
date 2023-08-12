@@ -1,0 +1,9 @@
+[ ] gravity
+	starting from bottom row of cells, working upwards
+		if cell is empty, look at cell above
+			if there is a tile, lerp the tile downwards
+		repeat until no tiles moved
+
+[X] Tile
+[X] Draw some tiles
+[X] Drag and drop tiles
