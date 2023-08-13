@@ -1,8 +1,35 @@
+[ ] func check integrity
+[ ] as soon as a tile is moved, out from original cell,
+	it should be homeless
+	so tiles stacked above can be gravity
+	moving tile should track owning cell as it's moved
+	so strokeStop should do less work
+	(you can't cancel a stroke and send tile back)
+[ ] Tile.lerpTo not working
+[ ] use different easing function instead of smoother step - accel under gravity and bounce
 [ ] gravity
-	starting from bottom row of cells, working upwards
-		if cell is empty, look at cell above
-			if there is a tile, lerp the tile downwards
-		repeat until no tiles moved
+
+[ ] easing
+	http://twenty.frenchguys.net/twenty-game.js uses easeInOut
+
+function easeInOut(t) {
+	if (t<0.5) {
+		return t*t*2;
+	} else {
+		return 1-(1-t)*(1-t)*2;
+	}
+}
+
+function interpolate(from,to,t) {
+	return from+(to-from)*t;
+}
+
+function drawParticles(frame, pos) {
+		var x=150*(frame%6);
+		var y=150*((frame/6)|0);
+		canvas.drawImage(gfx.particles,x,y,150,150,
+			pos.x-75, pos.y-37, 150, 150);
+	}
 
 [X] Tile
 [X] Draw some tiles

@@ -1,11 +1,14 @@
 package main
 
 import (
-	"image"
+	"fmt"
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"golang.org/x/exp/slices"
 	"oddstream.games/grot/stroke"
+	"oddstream.games/grot/util"
 )
 
 // Grid is a container object, for a 2-dimensional array of Cells
@@ -39,12 +42,12 @@ func NewGrid(across, down int) *Grid {
 
 	{
 		g.addTile(0, 0, 1)
-		g.addTile(1, 1, 2)
-		g.addTile(2, 2, 3)
-		g.addTile(3, 3, 4)
-		g.addTile(4, 4, 5)
-		g.addTile(5, 5, 6)
-		g.addTile(6, 6, 7)
+		g.addTile(0, 1, 2)
+		g.addTile(0, 2, 3)
+		g.addTile(0, 3, 1)
+		g.addTile(0, 4, 2)
+		g.addTile(0, 5, 3)
+		g.addTile(0, 6, 1)
 	}
 
 	return g
@@ -58,12 +61,27 @@ func (g *Grid) addTile(x, y int, v TileValue) {
 }
 
 func (g *Grid) findCell(x, y int) *Cell {
-	// cells do not move in the grid, so we can do this...
-	i := x + (y * g.cellsAcross)
-	if i < 0 || i >= len(g.cells) {
-		return nil
+	// // cells do not move in the grid, so we can do this...
+	// i := x + (y * g.cellsAcross)
+	// if i < 0 || i >= len(g.cells) {
+	// 	return nil
+	// }
+	// return g.cells[i]
+	for _, c := range g.cells {
+		if c.x == x && c.y == y {
+			return c
+		}
 	}
-	return g.cells[i]
+	return nil
+}
+
+func (g *Grid) findCellAt(x, y int) *Cell {
+	for _, c := range g.cells {
+		if x > c.hitbox.Min.X && y > c.hitbox.Min.Y && x < c.hitbox.Max.X && y < c.hitbox.Max.Y {
+			return c
+		}
+	}
+	return nil
 }
 
 func (g *Grid) findTileAt(x, y int) *Tile {
@@ -82,14 +100,18 @@ func (g *Grid) findTileAt(x, y int) *Tile {
 func (g *Grid) largestIntersection(t *Tile) *Cell {
 	var largestArea int = 0
 	var largestCell *Cell = nil
-	var tr image.Rectangle = image.Rectangle{Min: t.pos, Max: image.Point{X: t.pos.X + g.cellSize, Y: t.pos.Y + g.cellSize}}
+	var thitbox = util.MakeHitbox(t.pos, g.cellSize)
 	for _, c := range g.cells {
-		cr := image.Rectangle{Min: c.pos, Max: image.Point{X: c.pos.X + g.cellSize, Y: c.pos.Y + g.cellSize}}
-		inter := cr.Intersect(tr)
-		area := inter.Dx() * inter.Dy()
-		if area > largestArea {
-			largestArea = area
-			largestCell = c
+		if t.cell == c {
+			continue
+		}
+		inter := c.hitbox.Intersect(thitbox)
+		if !inter.Empty() {
+			area := inter.Dx() * inter.Dy()
+			if area > largestArea {
+				largestArea = area
+				largestCell = c
+			}
 		}
 	}
 	return largestCell
@@ -109,8 +131,25 @@ func (g *Grid) strokeStart(v stroke.StrokeEvent) {
 func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
+		oldPos := obj.pos
 		dx, dy := v.Stroke.PositionDiff()
 		obj.dragBy(dx, dy)
+		c := g.largestIntersection(obj)
+		if c != nil && c != obj.cell {
+			var moveAllowed = false
+			if c.tile == nil {
+				obj.cell.tile = nil // old cell no longer holds a tile
+				c.tile = obj        // new cell holds the tile
+				obj.cell = c        // this tile knows it's new owner
+				moveAllowed = true
+			} else if c.tile.value == obj.value {
+				g.mergeTiles(c.tile, obj)
+				moveAllowed = true
+			}
+			if !moveAllowed {
+				obj.pos = oldPos
+			}
+		}
 	}
 }
 
@@ -118,17 +157,8 @@ func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
 		if obj.wasDragged() {
-			if cdst := g.largestIntersection(obj); cdst == nil {
-				obj.cancelDrag()
-			} else {
-				if cdst.tile != nil {
-					obj.cancelDrag()
-				} else {
-					obj.stopDrag()
-					g.moveTile(obj.cell, cdst)
-					g.gravity()
-				}
-			}
+			obj.stopDrag()
+			obj.lerpTo(obj.cell.pos)
 		}
 	}
 }
@@ -162,36 +192,108 @@ func (g *Grid) NotifyCallback(v stroke.StrokeEvent) {
 }
 
 func (g *Grid) moveTile(src, dst *Cell) {
+	if src.tile == nil {
+		log.Panic("nil tile in moveTile")
+	}
+
 	t := src.tile
 
-	src.tile = nil
-
 	dst.tile = t
+	src.tile = nil
 	t.cell = dst
 
 	t.lerpTo(dst.pos)
+	// t.pos = dst.pos
+	// fmt.Println("moving", src.x, src.y, "to", dst.x, dst.y)
+}
+
+// func (g *Grid) deleteTile0(t *Tile) {
+// 	i := util.IndexOf(g.tiles, t)
+// 	if i == -1 {
+// 		log.Panic("deleteTile: tile is not in tiles")
+// 	}
+// 	// make t homeless
+// 	t.cell.tile = nil
+// 	t.cell = nil
+// 	// delete t with GC
+// 	if i < len(g.tiles)-1 {
+// 		copy(g.tiles[i:], g.tiles[i+1:])
+// 	}
+// 	g.tiles[len(g.tiles)-1] = nil // or the zero value of T
+// 	g.tiles = g.tiles[:len(g.tiles)-1]
+// }
+
+func (g *Grid) deleteTile(t *Tile) {
+	// make t homeless
+	t.cell.tile = nil
+	t.cell = nil
+	g.tiles = slices.DeleteFunc(g.tiles, func(t0 *Tile) bool {
+		return t == t0
+	})
+}
+
+func (g *Grid) mergeTiles(fixed, floater *Tile) {
+	floater.pos = fixed.pos
+	floater.value += 1
+	g.deleteTile(fixed)
 }
 
 func (g *Grid) gravity() {
 	for {
 		tilesMoved := false
 
-		for row := g.cellsDown - 1; row >= 0; row-- {
-			for col := 0; col < g.cellsAcross; col++ {
-				cs := g.findCell(col, row)
-				if cs.tile == nil { // this cell is empty
-					if cn := cs.edges[0]; cn != nil { // this cell has a cell above it
-						if cn.tile != nil { // this cell has a tile in it
-							g.moveTile(cn, cs)
-							tilesMoved = true
-						}
-					}
+		// move tile down if cell below is empty
+		for _, t := range g.tiles {
+			cn := t.cell
+			if cs := cn.edges[2]; cs != nil {
+				if cs.tile == nil {
+					g.moveTile(cn, cs)
+					tilesMoved = true
+					break
+				}
+			}
+		}
+
+		// for row := g.cellsDown - 1; row >= 0; row-- {
+		// 	for col := 0; col < g.cellsAcross; col++ {
+		// 		cs := g.findCell(col, row)
+		// 		if cs.tile == nil { // this cell is empty
+		// 			if cn := cs.edges[0]; cn != nil { // this cell has a cell above it
+		// 				if cn.tile != nil { // this cell has a tile in it
+		// 					g.moveTile(cn, cs)
+		// 					tilesMoved = true
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// }
+
+		// merge any stacked tiles of same value
+		for _, t := range g.tiles {
+			cn := t.cell
+			if cs := cn.edges[2]; cs != nil {
+				if cs.tile != nil && cs.tile.value == cn.tile.value {
+					g.mergeTiles(cs.tile, cn.tile)
+					tilesMoved = true
+					break
 				}
 			}
 		}
 
 		if !tilesMoved {
 			break
+		}
+	}
+}
+
+func (g *Grid) gravity1() {
+	for _, t := range g.tiles {
+		cn := t.cell
+		if cs := cn.edges[2]; cs != nil {
+			if cs.tile == nil {
+				g.moveTile(cn, cs)
+				break
+			}
 		}
 	}
 }
@@ -217,10 +319,7 @@ func (g *Grid) Layout(outsideWidth, outsideHeight int) (int, int) {
 	// fmt.Println("Cell size", g.cellSize, "Left margin", g.leftMargin, "Top margin", g.topMargin)
 
 	for _, c := range g.cells {
-		c.pos = image.Point{
-			g.leftMargin + (c.x * g.cellSize),
-			g.topMargin + (c.y * g.cellSize),
-		}
+		c.setPos(g.leftMargin+(c.x*g.cellSize), g.topMargin+(c.y*g.cellSize))
 	}
 	clear(TileImgLib)
 	// for tv := range TileImgLib {
@@ -252,6 +351,27 @@ func (g *Grid) Update() error {
 		}
 	}
 
+	if inpututil.IsKeyJustReleased(ebiten.KeyG) {
+		g.gravity()
+	}
+	if inpututil.IsKeyJustReleased(ebiten.KeyC) {
+		for _, c := range g.cells {
+			if c.tile != nil {
+				if c.tile.cell != c {
+					fmt.Println("fail at cell", c.x, c.y)
+				}
+			}
+		}
+		for _, t := range g.tiles {
+			if t.cell.tile != t {
+				fmt.Println("fail at tile", t.value)
+			}
+			if t.pos != t.cell.pos {
+				fmt.Println("pos fail at tile", t.value)
+			}
+		}
+	}
+
 	// individual cells are not updated
 	for _, t := range g.tiles {
 		t.update()
@@ -262,6 +382,11 @@ func (g *Grid) Update() error {
 // Draw draws the current GameScene to the given screen
 func (g *Grid) Draw(screen *ebiten.Image) {
 	screen.Fill(ColorBackground)
+	if DebugMode {
+		for _, c := range g.cells {
+			c.draw(screen)
+		}
+	}
 	// individual cells are not drawn
 	for _, t := range g.tiles {
 		if !t.beingDragged {

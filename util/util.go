@@ -68,6 +68,25 @@ func Smootherstep(A, B, v float64) float64 {
 // 	return (B * v) + (A * (1.0 - v))
 // }
 
+func EaseOutBounce(A, B, x float64) float64 {
+	const n1 = 7.5625
+	const d1 = 2.75
+
+	if x < 1/d1 {
+		x = n1 * x * x
+	} else if x < 2/d1 {
+		x -= 1.5
+		x = n1*x/d1*x + 0.75
+	} else if x < 2.5/d1 {
+		x -= 2.25
+		x = n1*x/d1*x + 0.9375
+	} else {
+		x -= 2.625
+		x = n1*x/d1*x + 0.984375
+	}
+	return (B * x) + (A * (1.0 - x))
+}
+
 // Normalize is the opposite of lerp. Instead of a range and a factor, we give a range and a value to find out the factor.
 func Normalize(start, finish, value float64) float64 {
 	return (value - start) / (finish - start)
@@ -154,3 +173,29 @@ func Distance(p1, p2 image.Point) float64 {
 // 	yOverlap := math.Max(0, math.Min(y2, Y2)-math.Max(y1, Y1))
 // 	return xOverlap * yOverlap
 // }
+
+func IndexOf[T comparable](elems []T, v T) int {
+	for i, s := range elems {
+		if v == s {
+			return i
+		}
+	}
+	return -1
+}
+
+func Contains[T comparable](elems []T, v T) bool {
+	for _, s := range elems {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func MakeHitbox(pos image.Point, sz int) image.Rectangle {
+	hgap := sz / 20
+	vgap := sz / 40
+	return image.Rectangle{
+		Min: image.Point{pos.X + hgap, pos.Y + vgap},
+		Max: image.Point{pos.X + sz - hgap*2, pos.Y + sz - vgap*2}}
+}
