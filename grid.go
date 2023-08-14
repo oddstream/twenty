@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"golang.org/x/exp/slices"
+	"oddstream.games/grot/bimap"
 	"oddstream.games/grot/stroke"
 	"oddstream.games/grot/util"
 )
@@ -25,6 +26,7 @@ type Grid struct {
 	moves                           int
 	tilebag                         []TileValue
 	gameOver                        bool
+	ctmap                           *bimap.BiMap[*Cell, *Tile]
 }
 
 func NewGrid(across, down int) *Grid {
@@ -38,16 +40,15 @@ func NewGrid(across, down int) *Grid {
 	for _, c := range g.cells {
 		x := c.x
 		y := c.y
-		c.edges[0] = g.findCell(x, y-1) // North
-		c.edges[1] = g.findCell(x+1, y) // East
-		c.edges[2] = g.findCell(x, y+1) // South
-		c.edges[3] = g.findCell(x-1, y) // West
+		c.N = g.findCell(x, y-1) // North
+		c.S = g.findCell(x, y+1) // South
 	}
 
 	for i := 0; i < g.cellsAcross*g.cellsDown; i++ {
 		g.tilebag = append(g.tilebag, TileValue(rand.Intn(3)+1))
 	}
 
+	g.ctmap = bimap.NewBiMap[*Cell, *Tile]()
 	g.addRow()
 	g.shuffleUp()
 	g.addRow()
@@ -83,15 +84,20 @@ func (g *Grid) addRow() {
 
 func (g *Grid) shuffleUp() bool {
 	for _, t := range g.tiles {
-		if t.cell.edges[0] == nil {
-			return false
+		if c, ok := g.ctmap.GetInverse(t); ok {
+			if c.N == nil {
+				// this tile is on a cell, and that cell is at the top of the grid,
+				// so we can't move the tile up, so the game is lost
+				return false
+			}
 		}
 	}
 	for y := 0; y < g.cellsDown; y++ {
 		for x := 0; x < g.cellsAcross; x++ {
 			c := g.findCell(x, y)
-			if c.tile != nil {
-				g.moveTile(c, c.edges[0])
+			if g.ctmap.Exists(c) {
+				// this cell has a tile, so move it up
+				g.moveTile(c, c.N)
 			}
 		}
 	}
@@ -100,8 +106,8 @@ func (g *Grid) shuffleUp() bool {
 
 func (g *Grid) addTile(x, y int, v TileValue) {
 	c := g.findCell(x, y)
-	t := NewTile(c, v)
-	c.tile = t
+	t := NewTile(g, c.pos, v)
+	g.ctmap.Insert(c, t)
 	g.tiles = append(g.tiles, t)
 }
 
@@ -112,6 +118,7 @@ func (g *Grid) findCell(x, y int) *Cell {
 	// 	return nil
 	// }
 	// return g.cells[i]
+	// ...but that didn't work, and we're prototyping, so brute-force it
 	for _, c := range g.cells {
 		if c.x == x && c.y == y {
 			return c
@@ -159,9 +166,11 @@ func (g *Grid) largestIntersection(t *Tile) *Cell {
 	var largestCell *Cell = nil
 	var thitbox = util.MakeHitbox(t.pos, g.cellSize)
 	for _, c := range g.cells {
-		if t.cell == c {
-			continue
-		}
+		// if t2, ok := g.ctmap.Get(c); ok {
+		// 	if t2 == t {
+		// 		continue
+		// 	}
+		// }
 		inter := c.hitbox.Intersect(thitbox)
 		if !inter.Empty() {
 			area := inter.Dx() * inter.Dy()
@@ -188,26 +197,31 @@ func (g *Grid) strokeStart(v stroke.StrokeEvent) {
 func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
-		oldPos := obj.pos
+		tdragged := obj // to make this more readable
+		oldPos := tdragged.pos
 		dx, dy := v.Stroke.PositionDiff()
-		obj.dragBy(dx, dy)
-		c := g.largestIntersection(obj)
-		if c != nil && c != obj.cell {
-			var moveAllowed = false
-			if c.tile == nil {
-				obj.cell.tile = nil // old cell no longer holds a tile
-				c.tile = obj        // new cell holds the tile
-				obj.cell = c        // this tile knows it's new owner
-				moveAllowed = true
-			} else if c.tile.value == obj.value {
-				obj.stopDrag()
-				g.mergeTiles(c.tile, obj)
-				g.incMoves()
-				moveAllowed = true
-			}
-			if !moveAllowed {
-				obj.pos = oldPos
-			}
+		tdragged.dragBy(dx, dy)
+		cdst := g.largestIntersection(tdragged)
+		if cdst == nil {
+			fmt.Println("no home for dragged tile!?")
+			break
+		}
+		cdragged, ok := g.ctmap.GetInverse(tdragged)
+		if !ok {
+			log.Panic("strokeMove: homeless dragged tile")
+		}
+		if cdst == cdragged {
+			break
+		}
+		if tdst, ok := g.ctmap.Get(cdst); !ok {
+			// target cell is empty
+			g.ctmap.Delete(cdragged)       // old cell no longer holds a tile
+			g.ctmap.Insert(cdst, tdragged) // new cell holds the tile
+		} else if tdragged.value == tdst.value {
+			g.mergeTiles(tdst, tdragged)
+			g.incMoves()
+		} else {
+			tdragged.pos = oldPos
 		}
 	}
 }
@@ -217,7 +231,9 @@ func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 	case *Tile:
 		if obj.wasDragged() {
 			obj.stopDrag()
-			obj.lerpTo(obj.cell.pos)
+			if c, ok := g.ctmap.GetInverse(obj); ok {
+				obj.lerpTo(c.pos)
+			}
 			g.incMoves()
 		}
 	}
@@ -255,15 +271,14 @@ func (g *Grid) NotifyCallback(v stroke.StrokeEvent) {
 }
 
 func (g *Grid) moveTile(src, dst *Cell) {
-	if src.tile == nil {
-		log.Panic("nil tile in moveTile")
+	// get the tile linked to the src cell
+	t, ok := g.ctmap.Get(src)
+	if !ok {
+		log.Panic("moveTile: src cell has no tile")
 	}
 
-	t := src.tile
-
-	dst.tile = t
-	src.tile = nil
-	t.cell = dst
+	g.ctmap.DeleteInverse(t) // make the tile t homeless
+	g.ctmap.Insert(dst, t)   // link the tile t to the dst cell
 
 	t.lerpTo(dst.pos)
 	// t.pos = dst.pos
@@ -287,9 +302,7 @@ func (g *Grid) moveTile(src, dst *Cell) {
 // }
 
 func (g *Grid) deleteTile(t *Tile) {
-	// make t homeless
-	t.cell.tile = nil
-	t.cell = nil
+	g.ctmap.DeleteInverse(t) // make the tile t homeless
 	g.tiles = slices.DeleteFunc(g.tiles, func(t0 *Tile) bool {
 		return t == t0
 	})
@@ -297,83 +310,53 @@ func (g *Grid) deleteTile(t *Tile) {
 
 func (g *Grid) mergeTiles(fixed, floater *Tile) {
 	g.tilebag = append(g.tilebag, floater.value)
-	floater.pos = fixed.pos
-	floater.value += 1
-	g.deleteTile(fixed)
-}
 
-func (g *Grid) gravity() {
-	for {
-		tilesMoved := false
-
-		// move tile down if cell below is empty
-		for _, t := range g.tiles {
-			cn := t.cell
-			if cs := cn.edges[2]; cs != nil {
-				if cs.tile == nil {
-					g.moveTile(cn, cs)
-					tilesMoved = true
-					break
-				}
-			}
-		}
-
-		// for row := g.cellsDown - 1; row >= 0; row-- {
-		// 	for col := 0; col < g.cellsAcross; col++ {
-		// 		cs := g.findCell(col, row)
-		// 		if cs.tile == nil { // this cell is empty
-		// 			if cn := cs.edges[0]; cn != nil { // this cell has a cell above it
-		// 				if cn.tile != nil { // this cell has a tile in it
-		// 					g.moveTile(cn, cs)
-		// 					tilesMoved = true
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-		// }
-
-		// merge any stacked tiles of same value
-		for _, t := range g.tiles {
-			cn := t.cell
-			if cs := cn.edges[2]; cs != nil {
-				if cs.tile != nil && cs.tile.value == cn.tile.value {
-					g.mergeTiles(cs.tile, cn.tile)
-					tilesMoved = true
-					break
-				}
-			}
-		}
-
-		if !tilesMoved {
-			break
-		}
+	dst, ok := g.ctmap.GetInverse(fixed)
+	if !ok {
+		log.Panic("mergeTiles: dst/fixed cell has no tile")
 	}
+	g.deleteTile(fixed)
+
+	g.ctmap.DeleteInverse(floater) // make the floater tile homeless
+	g.ctmap.Insert(dst, floater)   // link the floater to where fixed was
+	floater.lerpTo(dst.pos)        // lerp floater to it's new cell position
+
+	floater.value += 1
 }
 
 func (g *Grid) gravity1() {
 	// move tile down if cell below is empty
-	for _, t := range g.tiles {
-		if t.beingDragged || t.isLerping {
+	for _, tn := range g.tiles {
+		if tn.beingDragged || tn.isLerping {
 			continue
 		}
-		cn := t.cell
-		if cs := cn.edges[2]; cs != nil {
-			if cs.tile == nil {
+		cn, ok := g.ctmap.GetInverse(tn)
+		if !ok {
+			log.Panic("gravity1: (1) tile has no cell")
+		}
+		if cs := cn.S; cs != nil {
+			if !g.ctmap.Exists(cs) {
+				// there is no tile in this cell
 				g.moveTile(cn, cs)
 				return
 			}
 		}
 	}
 	// merge any stacked tiles of same value
-	for _, t := range g.tiles {
-		if t.beingDragged || t.isLerping {
+	for _, tn := range g.tiles {
+		if tn.beingDragged || tn.isLerping {
 			continue
 		}
-		cn := t.cell
-		if cs := cn.edges[2]; cs != nil {
-			if cs.tile != nil && cs.tile.value == cn.tile.value {
-				g.mergeTiles(cs.tile, cn.tile)
-				return
+		cn, ok := g.ctmap.GetInverse(tn)
+		if !ok {
+			log.Panic("gravity1: (2) tile has no cell")
+		}
+		if cs := cn.S; cs != nil {
+			if ts, ok := g.ctmap.Get(cs); ok {
+				if ts.value == tn.value {
+					g.mergeTiles(ts, tn)
+					return
+				}
 			}
 		}
 	}
@@ -409,9 +392,11 @@ func (g *Grid) Layout(outsideWidth, outsideHeight int) (int, int) {
 	TileFontFace = tileFontFace(g.cellSize / 2)
 
 	for _, t := range g.tiles {
-		t.pos = t.cell.pos
-		// t.lerpTo(t.cell.pos)
-		// fmt.Println(t.cell.pos, t.value, t.pos)
+		if c, ok := g.ctmap.GetInverse(t); ok {
+			t.pos = c.pos
+			// t.lerpTo(c.pos)
+			// fmt.Println(c.pos, t.value, t.pos)
+		}
 	}
 
 	g.oldWindowWidth = outsideWidth
@@ -432,23 +417,23 @@ func (g *Grid) Update() error {
 		}
 	}
 
-	if inpututil.IsKeyJustReleased(ebiten.KeyG) {
-		g.gravity()
-	}
 	if inpututil.IsKeyJustReleased(ebiten.KeyC) {
 		for _, c := range g.cells {
-			if c.tile != nil {
-				if c.tile.cell != c {
-					fmt.Println("fail at cell", c.x, c.y)
+			if t, ok := g.ctmap.Get(c); ok {
+				if c2, ok := g.ctmap.GetInverse(t); ok {
+					if c != c2 {
+						fmt.Println("fail at cell", c.x, c.y)
+					}
 				}
 			}
 		}
 		for _, t := range g.tiles {
-			if t.cell.tile != t {
-				fmt.Println("fail at tile", t.value)
-			}
-			if t.pos != t.cell.pos {
-				fmt.Println("pos fail at tile", t.value)
+			if c, ok := g.ctmap.GetInverse(t); !ok {
+				fmt.Println("homeless tile", t.value)
+			} else {
+				if t.pos != c.pos {
+					fmt.Println("tile/cell pos fail at tile", t.value)
+				}
 			}
 		}
 	}

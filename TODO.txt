@@ -1,3 +1,8 @@
+[ ] two-way map to link *Cell and *Tile
+
+
+
+
 run gravity in update()
 look for one tile to move (starting at bottom), then quit
 don't move a tile if it is lerping or dragging

@@ -13,10 +13,9 @@ import (
 type Cell struct {
 	grid   *Grid
 	x, y   int
-	edges  [4]*Cell // links to neighbours 0=N, 1=E, 2=S, 3=W
+	N, S   *Cell // links to North and South cells
 	pos    image.Point
 	hitbox image.Rectangle
-	tile   *Tile
 }
 
 func NewCell(grid *Grid, x, y int) *Cell {
@@ -33,17 +32,11 @@ func (c *Cell) setPos(x, y int) {
 func (c *Cell) draw(screen *ebiten.Image) {
 	str := fmt.Sprintf("%d,%d ", c.x, c.y)
 	mid := c.grid.cellSize / 2
-	if c.edges[0] != nil {
+	if c.N != nil {
 		str = str + "N"
 	}
-	if c.edges[1] != nil {
-		str = str + "E"
-	}
-	if c.edges[2] != nil {
+	if c.S != nil {
 		str = str + "S"
-	}
-	if c.edges[3] != nil {
-		str = str + "W"
 	}
 	ebitenutil.DebugPrintAt(screen, str, c.pos.X+mid, c.pos.Y+mid)
 }

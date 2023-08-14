@@ -17,6 +17,7 @@ const aniSpeed = 0.25
 type TileValue int
 
 type Tile struct {
+	grid *Grid
 	// pos of card on grid
 	pos image.Point
 
@@ -30,7 +31,6 @@ type Tile struct {
 	dragStart    image.Point
 	beingDragged bool
 
-	cell  *Cell
 	value TileValue
 }
 
@@ -61,13 +61,13 @@ var tileColorMap = map[TileValue]TileColors{
 	20: {face: color.RGBA{0xff, 0x83, 0x43, 0xff}, text: color.RGBA{0xff, 0xff, 0xff, 0xff}, footer: color.RGBA{0xd4, 0x48, 0x00, 0xff}},
 }
 
-func NewTile(cell *Cell, value TileValue) *Tile {
-	t := &Tile{cell: cell, pos: cell.pos, value: value}
+func NewTile(grid *Grid, pos image.Point, value TileValue) *Tile {
+	t := &Tile{grid: grid, pos: pos, value: value}
 	return t
 }
 
 func (t *Tile) makeTileImg() *ebiten.Image {
-	isz := t.cell.grid.cellSize
+	isz := t.grid.cellSize
 	if isz == 0 {
 		return nil
 	}
@@ -185,7 +185,10 @@ func (t *Tile) draw(screen *ebiten.Image) {
 	screen.DrawImage(img, op)
 
 	if DebugMode {
-		str := fmt.Sprintf("%d,%d ", t.cell.x, t.cell.y)
-		ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
+		c, ok := t.grid.ctmap.GetInverse(t)
+		if ok {
+			str := fmt.Sprintf("%d,%d ", c.x, c.y)
+			ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
+		}
 	}
 }
