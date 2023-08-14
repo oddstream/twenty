@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -21,6 +22,9 @@ type Grid struct {
 	cells                           []*Cell
 	tiles                           []*Tile
 	stroke                          *stroke.Stroke
+	moves                           int
+	tilebag                         []TileValue
+	gameOver                        bool
 }
 
 func NewGrid(across, down int) *Grid {
@@ -40,17 +44,58 @@ func NewGrid(across, down int) *Grid {
 		c.edges[3] = g.findCell(x-1, y) // West
 	}
 
-	{
-		g.addTile(0, 0, 1)
-		g.addTile(0, 1, 2)
-		g.addTile(0, 2, 3)
-		g.addTile(0, 3, 1)
-		g.addTile(0, 4, 2)
-		g.addTile(0, 5, 3)
-		g.addTile(0, 6, 1)
+	for i := 0; i < g.cellsAcross*g.cellsDown; i++ {
+		g.tilebag = append(g.tilebag, TileValue(rand.Intn(3)+1))
 	}
 
+	g.addRow()
+	g.shuffleUp()
+	g.addRow()
+
 	return g
+}
+
+func (g *Grid) highestValue() TileValue {
+	var highest TileValue
+	for _, t := range g.tiles {
+		if t.value > highest {
+			highest = t.value
+		}
+	}
+	return highest
+}
+
+func (g *Grid) addRow() {
+	if len(g.tilebag) < 7 {
+		fmt.Printf("Not enough tiles in tilebag")
+		return
+	}
+	rand.Shuffle(len(g.tilebag), func(i, j int) {
+		g.tilebag[i], g.tilebag[j] = g.tilebag[j], g.tilebag[i]
+	})
+	y := g.cellsDown - 1
+	for x := 0; x < g.cellsAcross; x++ {
+		v := g.tilebag[len(g.tilebag)-1]
+		g.tilebag = g.tilebag[:len(g.tilebag)-1]
+		g.addTile(x, y, v)
+	}
+}
+
+func (g *Grid) shuffleUp() bool {
+	for _, t := range g.tiles {
+		if t.cell.edges[0] == nil {
+			return false
+		}
+	}
+	for y := 0; y < g.cellsDown; y++ {
+		for x := 0; x < g.cellsAcross; x++ {
+			c := g.findCell(x, y)
+			if c.tile != nil {
+				g.moveTile(c, c.edges[0])
+			}
+		}
+	}
+	return true
 }
 
 func (g *Grid) addTile(x, y int, v TileValue) {
@@ -95,6 +140,18 @@ func (g *Grid) findTileAt(x, y int) *Tile {
 		}
 	}
 	return nil
+}
+
+func (g *Grid) incMoves() {
+	g.moves++
+	if g.moves%g.cellsAcross == 0 {
+		if g.shuffleUp() {
+			g.addRow()
+		} else {
+			g.gameOver = true
+			fmt.Println("GAME OVER")
+		}
+	}
 }
 
 func (g *Grid) largestIntersection(t *Tile) *Cell {
@@ -143,7 +200,9 @@ func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 				obj.cell = c        // this tile knows it's new owner
 				moveAllowed = true
 			} else if c.tile.value == obj.value {
+				obj.stopDrag()
 				g.mergeTiles(c.tile, obj)
+				g.incMoves()
 				moveAllowed = true
 			}
 			if !moveAllowed {
@@ -159,6 +218,7 @@ func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 		if obj.wasDragged() {
 			obj.stopDrag()
 			obj.lerpTo(obj.cell.pos)
+			g.incMoves()
 		}
 	}
 }
@@ -175,6 +235,9 @@ func (g *Grid) strokeTap(v stroke.StrokeEvent) {
 }
 
 func (g *Grid) NotifyCallback(v stroke.StrokeEvent) {
+	if g.gameOver {
+		return
+	}
 	switch v.Event {
 	case stroke.Start:
 		g.strokeStart(v)
@@ -233,6 +296,7 @@ func (g *Grid) deleteTile(t *Tile) {
 }
 
 func (g *Grid) mergeTiles(fixed, floater *Tile) {
+	g.tilebag = append(g.tilebag, floater.value)
 	floater.pos = fixed.pos
 	floater.value += 1
 	g.deleteTile(fixed)
@@ -287,12 +351,29 @@ func (g *Grid) gravity() {
 }
 
 func (g *Grid) gravity1() {
+	// move tile down if cell below is empty
 	for _, t := range g.tiles {
+		if t.beingDragged || t.isLerping {
+			continue
+		}
 		cn := t.cell
 		if cs := cn.edges[2]; cs != nil {
 			if cs.tile == nil {
 				g.moveTile(cn, cs)
-				break
+				return
+			}
+		}
+	}
+	// merge any stacked tiles of same value
+	for _, t := range g.tiles {
+		if t.beingDragged || t.isLerping {
+			continue
+		}
+		cn := t.cell
+		if cs := cn.edges[2]; cs != nil {
+			if cs.tile != nil && cs.tile.value == cn.tile.value {
+				g.mergeTiles(cs.tile, cn.tile)
+				return
 			}
 		}
 	}
@@ -371,11 +452,21 @@ func (g *Grid) Update() error {
 			}
 		}
 	}
+	if inpututil.IsKeyJustReleased(ebiten.KeyN) {
+		if g.shuffleUp() {
+			g.addRow()
+		} else {
+			fmt.Println("GAME OVER")
+		}
+	}
 
 	// individual cells are not updated
 	for _, t := range g.tiles {
 		t.update()
 	}
+
+	g.gravity1()
+
 	return nil
 }
 

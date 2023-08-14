@@ -100,9 +100,9 @@ func (t *Tile) makeTileImg() *ebiten.Image {
 }
 
 func (t *Tile) lerpTo(dst image.Point) {
-	if t.dst.Eq(t.pos) {
+	if dst.Eq(t.pos) {
 		t.isLerping = false
-		fmt.Println("tile already at dst", t.value)
+		// fmt.Println("tile already at dst", t.value)
 		return
 	}
 	if t.isLerping && dst.Eq(t.dst) {
@@ -110,6 +110,7 @@ func (t *Tile) lerpTo(dst image.Point) {
 		return // repeat request to lerp to dst
 	}
 	if t.isLerping {
+		fmt.Println("extended lerp", t.value)
 		// leave src
 		t.dst = dst
 		// leave lerpStartTime
