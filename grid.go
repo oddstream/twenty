@@ -78,7 +78,7 @@ func (g *Grid) addRow() {
 	for x := 0; x < g.cellsAcross; x++ {
 		v := g.tilebag[len(g.tilebag)-1]
 		g.tilebag = g.tilebag[:len(g.tilebag)-1]
-		g.addTile(x, y, v)
+		g.addTile(g.findCell(x, y), v)
 	}
 }
 
@@ -104,8 +104,10 @@ func (g *Grid) shuffleUp() bool {
 	return true
 }
 
-func (g *Grid) addTile(x, y int, v TileValue) {
-	c := g.findCell(x, y)
+func (g *Grid) addTile(c *Cell, v TileValue) {
+	if DebugMode && g.ctmap.Exists(c) {
+		log.Panic("addTile: cell is not empty")
+	}
 	t := NewTile(g, c.pos, v)
 	g.ctmap.Insert(c, t)
 	g.tiles = append(g.tiles, t)
@@ -151,12 +153,12 @@ func (g *Grid) findTileAt(x, y int) *Tile {
 
 func (g *Grid) incMoves() {
 	g.moves++
-	if g.moves%g.cellsAcross == 0 {
+	if g.moves%(g.cellsAcross-1) == 0 {
 		if g.shuffleUp() {
 			g.addRow()
 		} else {
 			g.gameOver = true
-			fmt.Println("GAME OVER")
+			fmt.Println("GAME OVER", g.highestValue())
 		}
 	}
 }
@@ -302,6 +304,10 @@ func (g *Grid) moveTile(src, dst *Cell) {
 // }
 
 func (g *Grid) deleteTile(t *Tile) {
+	if t.beingDragged {
+		log.Println("deleteTile: beingDragged")
+		return
+	}
 	g.ctmap.DeleteInverse(t) // make the tile t homeless
 	g.tiles = slices.DeleteFunc(g.tiles, func(t0 *Tile) bool {
 		return t == t0
@@ -309,6 +315,10 @@ func (g *Grid) deleteTile(t *Tile) {
 }
 
 func (g *Grid) mergeTiles(fixed, floater *Tile) {
+	if fixed.beingDragged {
+		log.Println("mergeTiles: fixed is being dragged")
+		return
+	}
 	g.tilebag = append(g.tilebag, floater.value)
 
 	dst, ok := g.ctmap.GetInverse(fixed)
@@ -322,6 +332,7 @@ func (g *Grid) mergeTiles(fixed, floater *Tile) {
 	floater.lerpTo(dst.pos)        // lerp floater to it's new cell position
 
 	floater.value += 1
+	dst.startParticles()
 }
 
 func (g *Grid) gravity1() {
@@ -353,9 +364,11 @@ func (g *Grid) gravity1() {
 		}
 		if cs := cn.S; cs != nil {
 			if ts, ok := g.ctmap.Get(cs); ok {
-				if ts.value == tn.value {
-					g.mergeTiles(ts, tn)
-					return
+				if !(ts.beingDragged || ts.isLerping) {
+					if ts.value == tn.value {
+						g.mergeTiles(ts, tn)
+						return
+					}
 				}
 			}
 		}
@@ -437,15 +450,10 @@ func (g *Grid) Update() error {
 			}
 		}
 	}
-	if inpututil.IsKeyJustReleased(ebiten.KeyN) {
-		if g.shuffleUp() {
-			g.addRow()
-		} else {
-			fmt.Println("GAME OVER")
-		}
-	}
 
-	// individual cells are not updated
+	for _, c := range g.cells {
+		c.update()
+	}
 	for _, t := range g.tiles {
 		t.update()
 	}
@@ -458,12 +466,9 @@ func (g *Grid) Update() error {
 // Draw draws the current GameScene to the given screen
 func (g *Grid) Draw(screen *ebiten.Image) {
 	screen.Fill(ColorBackground)
-	if DebugMode {
-		for _, c := range g.cells {
-			c.draw(screen)
-		}
+	for _, c := range g.cells {
+		c.draw(screen)
 	}
-	// individual cells are not drawn
 	for _, t := range g.tiles {
 		if !t.beingDragged {
 			t.draw(screen)

@@ -14,7 +14,7 @@ import (
 var (
 	DebugMode                 bool
 	WindowWidth, WindowHeight int
-	ColorBackground                                       = color.RGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff}
+	ColorBackground                                       = color.RGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff}
 	TileImgLib                map[TileValue]*ebiten.Image = make(map[TileValue]*ebiten.Image)
 	TileFontFace              font.Face
 )

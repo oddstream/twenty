@@ -11,7 +11,7 @@ var theSM *SceneManager = &SceneManager{}
 func NewGame() (*GrotGame, error) {
 	g := &GrotGame{}
 	// theSM.Switch(NewSplash())
-	theSM.Switch(NewGrid(7, 7))
+	theSM.Switch(NewGrid(7, 8))
 	return g, nil
 }
 

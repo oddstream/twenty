@@ -3,6 +3,8 @@ package bimap
 
 import "sync"
 
+// https://github.com/vishalkuo/bimap
+
 // BiMap is a bi-directional hashmap that is thread safe and supports immutability
 type BiMap[K comparable, V comparable] struct {
 	s         sync.RWMutex
