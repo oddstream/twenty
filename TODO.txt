@@ -1,6 +1,9 @@
-[ ] timer-bar
+[ ] stop dragging outside grid
 [ ] sounds (detect combos)
+[ ] timer-bar
 [ ] link_lr and link_ud (rounded rects) starting at level 10
+[X] where is http://twenty.frenchguys.net/twenty-engine.js from? emscripten?
+[X] where is http://twenty.frenchguys.net/twenty-minified.js from?
 
 [ ] easing
 	http://twenty.frenchguys.net/twenty-game.js uses easeInOut

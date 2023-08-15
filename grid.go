@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"golang.org/x/exp/slices"
 	"oddstream.games/grot/bimap"
+	"oddstream.games/grot/sound"
 	"oddstream.games/grot/stroke"
 	"oddstream.games/grot/util"
 )
@@ -23,7 +24,7 @@ type Grid struct {
 	cells                           []*Cell
 	tiles                           []*Tile
 	stroke                          *stroke.Stroke
-	moves                           int
+	moves, combo                    int
 	tilebag                         []TileValue
 	gameOver                        bool
 	ctmap                           *bimap.BiMap[*Cell, *Tile]
@@ -159,6 +160,7 @@ func (g *Grid) incMoves() {
 		} else {
 			g.gameOver = true
 			fmt.Println("GAME OVER", g.highestValue())
+			sound.Play("GameOver")
 		}
 	}
 }
@@ -194,6 +196,7 @@ func (g *Grid) strokeStart(v stroke.StrokeEvent) {
 	} else {
 		g.stroke.Cancel()
 	}
+	g.combo = 0
 }
 
 func (g *Grid) strokeMove(v stroke.StrokeEvent) {
@@ -232,6 +235,7 @@ func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
 		if obj.wasDragged() {
+			sound.Play("Drop")
 			obj.stopDrag()
 			if c, ok := g.ctmap.GetInverse(obj); ok {
 				obj.lerpTo(c.pos)
@@ -333,6 +337,17 @@ func (g *Grid) mergeTiles(fixed, floater *Tile) {
 
 	floater.value += 1
 	dst.startParticles()
+	g.combo += 1
+	switch g.combo {
+	case 1:
+		sound.Play("Combo1")
+	case 2:
+		sound.Play("Combo2")
+	case 3:
+		sound.Play("Combo3")
+	case 4:
+		sound.Play("Combo4")
+	}
 }
 
 func (g *Grid) gravity1() {
