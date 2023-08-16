@@ -1,5 +1,40 @@
-[ ] stop dragging outside grid
-[ ] sounds (detect combos)
+are cells even required?
+why not piles?
+tile wants to be at x = margin + pile pos
+with margin=10 and pileWidth=100
+pos 255 is pile 255-10=245, 245/100=2
+pos 45 is pile 45-10/100=0
+then pile is just a number, not a struct
+gravity just drops each tile while the bottom of it's outerbox is > top of box below on same pile
+can then use easeInout for vertical, smoothstep for horz
+
+new row of tiles starts off grid at the bottom
+gravity is suspended while they float up (lerp) one tile height
+meanwhile all the other tiles float (lerp) up one tile height
+when floating is finished, gravity is turned back on
+i.e. in float mode, all tiles lerp up one tile height
+
+under gravity, each tile moves down
+unless tile is at bottom of grid
+or if there is no tile below
+so gravity needs to work from bottom up
+so tiles need to be sorted into descending pos.Y order first
+
+tiles can fall under gravity with acceleration, not just one pixel per tick
+const gravity = 9.8
+object.velocity += gravity * float64(step)
+object.position += object.velocity * float64(step)
+
+moves
+	onto empty cell
+	onto tile with same value
+happens in strokeStop
+strokeMOve should just do bounds checking
+
+[X] stop dragging outside grid
+[ ] stop dragging through other tiles
+[X] sounds (detect combos)
+[ ] undo stack
 [ ] timer-bar
 [ ] link_lr and link_ud (rounded rects) starting at level 10
 [X] where is http://twenty.frenchguys.net/twenty-engine.js from? emscripten?

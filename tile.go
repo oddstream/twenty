@@ -8,7 +8,6 @@ import (
 
 	"github.com/fogleman/gg"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"oddstream.games/grot/util"
 )
 
@@ -19,7 +18,8 @@ type TileValue int
 type Tile struct {
 	grid *Grid
 	// pos of card on grid
-	pos image.Point
+	pos  image.Point
+	pile int
 
 	// lerping things
 	src           image.Point
@@ -184,11 +184,11 @@ func (t *Tile) draw(screen *ebiten.Image) {
 	op.GeoM.Translate(float64(t.pos.X), float64(t.pos.Y))
 	screen.DrawImage(img, op)
 
-	if DebugMode {
-		c, ok := t.grid.ctmap.GetInverse(t)
-		if ok {
-			str := fmt.Sprintf("%d,%d ", c.x, c.y)
-			ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
-		}
-	}
+	// if DebugMode {
+	// 	c, ok := t.grid.ctmap.GetInverse(t)
+	// 	if ok {
+	// 		str := fmt.Sprintf("%d,%d ", c.x, c.y)
+	// 		ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
+	// 	}
+	// }
 }

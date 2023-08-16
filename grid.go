@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"log"
 	"math/rand"
 
@@ -165,17 +166,24 @@ func (g *Grid) incMoves() {
 	}
 }
 
-func (g *Grid) largestIntersection(t *Tile) *Cell {
+func (g *Grid) boxInGrid(r image.Rectangle) bool {
+	if r.Min.X < g.leftMargin || r.Min.Y < g.topMargin {
+		return false
+	}
+	if r.Max.X > g.leftMargin+(g.cellSize*g.cellsAcross) {
+		return false
+	}
+	if r.Max.Y > g.topMargin+(g.cellSize*g.cellsDown) {
+		return false
+	}
+	return true
+}
+
+func (g *Grid) largestCellIntersection(tbox image.Rectangle) *Cell {
 	var largestArea int = 0
 	var largestCell *Cell = nil
-	var thitbox = util.MakeHitbox(t.pos, g.cellSize)
 	for _, c := range g.cells {
-		// if t2, ok := g.ctmap.Get(c); ok {
-		// 	if t2 == t {
-		// 		continue
-		// 	}
-		// }
-		inter := c.hitbox.Intersect(thitbox)
+		inter := c.hitbox.Intersect(tbox)
 		if !inter.Empty() {
 			area := inter.Dx() * inter.Dy()
 			if area > largestArea {
@@ -185,6 +193,26 @@ func (g *Grid) largestIntersection(t *Tile) *Cell {
 		}
 	}
 	return largestCell
+}
+
+func (g *Grid) largestTileIntersection(t1 *Tile, t1box image.Rectangle) *Tile {
+	var largestArea int
+	var largestTile *Tile
+	for _, t2 := range g.tiles {
+		if t1 == t2 {
+			continue
+		}
+		t2box := util.MakeHitbox(t2.pos, g.cellSize)
+		inter := t2box.Intersect(t1box)
+		if !inter.Empty() {
+			area := inter.Dx() * inter.Dy()
+			if area > largestArea {
+				largestArea = area
+				largestTile = t2
+			}
+		}
+	}
+	return largestTile
 }
 
 func (g *Grid) strokeStart(v stroke.StrokeEvent) {
@@ -203,30 +231,25 @@ func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
 		tdragged := obj // to make this more readable
-		oldPos := tdragged.pos
 		dx, dy := v.Stroke.PositionDiff()
-		tdragged.dragBy(dx, dy)
-		cdst := g.largestIntersection(tdragged)
-		if cdst == nil {
-			fmt.Println("no home for dragged tile!?")
+
+		// disallow move if tile goes off grid canvas
+		pos0 := tdragged.possibleDragBy(dx, dy)
+		tbox := util.MakeHitbox(pos0, g.cellSize)
+		if !g.boxInGrid(tbox) {
 			break
 		}
-		cdragged, ok := g.ctmap.GetInverse(tdragged)
-		if !ok {
-			log.Panic("strokeMove: homeless dragged tile")
-		}
-		if cdst == cdragged {
-			break
-		}
-		if tdst, ok := g.ctmap.Get(cdst); !ok {
-			// target cell is empty
-			g.ctmap.Delete(cdragged)       // old cell no longer holds a tile
-			g.ctmap.Insert(cdst, tdragged) // new cell holds the tile
-		} else if tdragged.value == tdst.value {
-			g.mergeTiles(tdst, tdragged)
-			g.incMoves()
-		} else {
-			tdragged.pos = oldPos
+
+		// disallow move if tile moves over another tile with different value
+		tdst := g.largestTileIntersection(tdragged, tbox)
+		if tdst == nil {
+			// move to an empty cell
+			tdragged.dragBy(dx, dy)
+		} else if tdst.value == tdragged.value {
+			tdragged.dragBy(dx, dy)
+			// tdragged.stopDrag()
+			// g.mergeTiles(tdst, tdragged)
+			// g.incMoves()
 		}
 	}
 }
@@ -234,13 +257,53 @@ func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
-		if obj.wasDragged() {
+		if !obj.wasDragged() {
+			break
+		}
+
+		tdragged := obj // to make this more readable
+		tbox := util.MakeHitbox(tdragged.pos, g.cellSize)
+		tdst := g.largestTileIntersection(tdragged, tbox)
+		if tdst == nil {
+			fmt.Println("strokeStop: tile dropped on empty cell")
+
+			// dropped on an empty cell
 			sound.Play("Drop")
-			obj.stopDrag()
-			if c, ok := g.ctmap.GetInverse(obj); ok {
-				obj.lerpTo(c.pos)
+			if cdragged, ok := g.ctmap.GetInverse(tdragged); !ok {
+				fmt.Println("strokeStop: error: dragged tile has no home cell!?")
+				obj.cancelDrag()
+			} else {
+				cdst := g.largestCellIntersection(tbox)
+				if cdst == nil {
+					fmt.Println("strokeStop: error: tile is nowhere")
+					obj.cancelDrag()
+				} else if cdragged == cdst {
+					fmt.Println("strokeStop: tile is being put back")
+					obj.cancelDrag()
+				} else {
+					if g.ctmap.Exists(cdst) {
+						fmt.Println("strokeStop: error: there is a tile here!")
+						obj.cancelDrag()
+					} else {
+						obj.stopDrag()
+						g.moveTile(cdragged, cdst)
+						g.incMoves()
+					}
+				}
 			}
+		} else if tdst == tdragged {
+			fmt.Println("strokeStop: tile dragged into itself")
+			obj.cancelDrag()
+		} else if tdst.value == tdragged.value {
+			obj.stopDrag()
+			// dropped on a tile of same value
+			g.mergeTiles(tdst, tdragged)
 			g.incMoves()
+		} else {
+			// just dropped
+			sound.Play("Drop")
+			fmt.Println("strokeStop: tile just dropped")
+			obj.cancelDrag()
 		}
 	}
 }
