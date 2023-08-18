@@ -8,22 +8,41 @@ then pile is just a number, not a struct
 gravity just drops each tile while the bottom of it's outerbox is > top of box below on same pile
 can then use easeInout for vertical, smoothstep for horz
 
-new row of tiles starts off grid at the bottom
-gravity is suspended while they float up (lerp) one tile height
-meanwhile all the other tiles float (lerp) up one tile height
-when floating is finished, gravity is turned back on
-i.e. in float mode, all tiles lerp up one tile height
+don't need gravity
+because AT MOST one tile will be falling
+and the tile under it will ALWAYS be static
+need to know if each tile has a tile immediately under it
+and lerp if not
 
 under gravity, each tile moves down
 unless tile is at bottom of grid
 or if there is no tile below
 so gravity needs to work from bottom up
-so tiles need to be sorted into descending pos.Y order first
+so tiles need to be sorted into descending pos.Y order first eg y=300 200 100
 
 tiles can fall under gravity with acceleration, not just one pixel per tick
 const gravity = 9.8
 object.velocity += gravity * float64(step)
 object.position += object.velocity * float64(step)
+until they get to bottom of grid
+or intersect with another tile
+if that tile has same value, merge, else go back up and stop
+
+helper functions:
+	func getTiles(pile int) []*Tile
+	sort []*Tile into ascending/decending pos.Y order
+	reposition tiles (after layout)
+	getFooterTiles() []*Tile
+	getHeaderTiles() []*Tile
+	calcColumn
+	0    1      2      3
+	0    100    200    300
+    column = math.Round(pos.X / tileWidth)
+
+cube.Position.X = Math.round(cube.Position.X / gridCubeWidth) * gridCubeWidth;
+175 / 100 * 100 =
+
+
 
 moves
 	onto empty cell

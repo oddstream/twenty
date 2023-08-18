@@ -3,57 +3,44 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"log"
 	"math/rand"
+	"sort"
 
+	"github.com/fogleman/gg"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"golang.org/x/exp/slices"
-	"oddstream.games/grot/bimap"
 	"oddstream.games/grot/sound"
 	"oddstream.games/grot/stroke"
-	"oddstream.games/grot/util"
 )
 
 // Grid is a container object, for a 2-dimensional array of Cells
 // and a slice of Tiles
 type Grid struct {
 	oldWindowWidth, oldWindowHeight int
-	cellsAcross, cellsDown          int
-	cellSize                        int // cells are always square
+	tilesAcross, tilesDown          int
+	tileSize                        int // tiles are always square
 	leftMargin, topMargin           int
-	cells                           []*Cell
+	headerRectangle                 image.Rectangle
+	gridRectangle                   image.Rectangle
+	footerRectangle                 image.Rectangle
+	theBottomLine                   int
 	tiles                           []*Tile
+	tilebag                         []TileValue
 	stroke                          *stroke.Stroke
 	moves, combo                    int
-	tilebag                         []TileValue
 	gameOver                        bool
-	ctmap                           *bimap.BiMap[*Cell, *Tile]
+	imgHeaderFooter, imgGrid        *ebiten.Image // debug
 }
 
 func NewGrid(across, down int) *Grid {
-	g := &Grid{cellsAcross: across, cellsDown: down}
-	g.cells = make([]*Cell, across*down)
-	for i := range g.cells {
-		g.cells[i] = NewCell(g, i%across, i/across)
-	}
-	// fmt.Println(len(g.cells), "cells made")
-	// link the cells together to avoid all that tedious 2d array stuff
-	for _, c := range g.cells {
-		x := c.x
-		y := c.y
-		c.N = g.findCell(x, y-1) // North
-		c.S = g.findCell(x, y+1) // South
-	}
+	g := &Grid{tilesAcross: across, tilesDown: down}
 
-	for i := 0; i < g.cellsAcross*g.cellsDown; i++ {
+	for i := 0; i < g.tilesAcross*g.tilesDown; i++ {
 		g.tilebag = append(g.tilebag, TileValue(rand.Intn(3)+1))
 	}
-
-	g.ctmap = bimap.NewBiMap[*Cell, *Tile]()
-	g.addRow()
-	g.shuffleUp()
-	g.addRow()
 
 	return g
 }
@@ -68,7 +55,12 @@ func (g *Grid) highestValue() TileValue {
 	return highest
 }
 
-func (g *Grid) addRow() {
+func (g *Grid) addTile(pos image.Point, v TileValue) {
+	t := NewTile(g, pos, v)
+	g.tiles = append(g.tiles, t)
+}
+
+func (g *Grid) addFooterRow() {
 	if len(g.tilebag) < 7 {
 		fmt.Printf("Not enough tiles in tilebag")
 		return
@@ -76,65 +68,28 @@ func (g *Grid) addRow() {
 	rand.Shuffle(len(g.tilebag), func(i, j int) {
 		g.tilebag[i], g.tilebag[j] = g.tilebag[j], g.tilebag[i]
 	})
-	y := g.cellsDown - 1
-	for x := 0; x < g.cellsAcross; x++ {
+	for x := 0; x < g.tilesAcross; x++ {
 		v := g.tilebag[len(g.tilebag)-1]
 		g.tilebag = g.tilebag[:len(g.tilebag)-1]
-		g.addTile(g.findCell(x, y), v)
+		g.addTile(image.Point{
+			X: g.footerRectangle.Min.X + (x * g.tileSize),
+			Y: g.footerRectangle.Min.Y},
+			v)
 	}
 }
 
-func (g *Grid) shuffleUp() bool {
+func (g *Grid) lerpUp() {
 	for _, t := range g.tiles {
-		if c, ok := g.ctmap.GetInverse(t); ok {
-			if c.N == nil {
-				// this tile is on a cell, and that cell is at the top of the grid,
-				// so we can't move the tile up, so the game is lost
-				return false
-			}
-		}
+		pos := t.pos
+		pos.Y -= g.tileSize
+		t.lerpTo(pos)
 	}
-	for y := 0; y < g.cellsDown; y++ {
-		for x := 0; x < g.cellsAcross; x++ {
-			c := g.findCell(x, y)
-			if g.ctmap.Exists(c) {
-				// this cell has a tile, so move it up
-				g.moveTile(c, c.N)
-			}
-		}
-	}
-	return true
 }
 
-func (g *Grid) addTile(c *Cell, v TileValue) {
-	if DebugMode && g.ctmap.Exists(c) {
-		log.Panic("addTile: cell is not empty")
-	}
-	t := NewTile(g, c.pos, v)
-	g.ctmap.Insert(c, t)
-	g.tiles = append(g.tiles, t)
-}
-
-func (g *Grid) findCell(x, y int) *Cell {
-	// // cells do not move in the grid, so we can do this...
-	// i := x + (y * g.cellsAcross)
-	// if i < 0 || i >= len(g.cells) {
-	// 	return nil
-	// }
-	// return g.cells[i]
-	// ...but that didn't work, and we're prototyping, so brute-force it
-	for _, c := range g.cells {
-		if c.x == x && c.y == y {
-			return c
-		}
-	}
-	return nil
-}
-
-func (g *Grid) findCellAt(x, y int) *Cell {
-	for _, c := range g.cells {
-		if x > c.hitbox.Min.X && y > c.hitbox.Min.Y && x < c.hitbox.Max.X && y < c.hitbox.Max.Y {
-			return c
+func (g *Grid) findTile(row, column int) *Tile {
+	for _, t := range g.tiles {
+		if t.row == row && t.column == column {
+			return t
 		}
 	}
 	return nil
@@ -144,8 +99,8 @@ func (g *Grid) findTileAt(x, y int) *Tile {
 	for _, t := range g.tiles {
 		x0 := t.pos.X
 		y0 := t.pos.Y
-		x1 := x0 + g.cellSize
-		y1 := y0 + g.cellSize
+		x1 := x0 + g.tileSize
+		y1 := y0 + g.tileSize
 		if x > x0 && y > y0 && x < x1 && y < y1 {
 			return t
 		}
@@ -155,55 +110,39 @@ func (g *Grid) findTileAt(x, y int) *Tile {
 
 func (g *Grid) incMoves() {
 	g.moves++
-	if g.moves%(g.cellsAcross-1) == 0 {
-		if g.shuffleUp() {
-			g.addRow()
-		} else {
-			g.gameOver = true
-			fmt.Println("GAME OVER", g.highestValue())
-			sound.Play("GameOver")
-		}
+	if g.moves%(g.tilesAcross-1) == 0 {
+		g.addFooterRow()
+		g.lerpUp()
 	}
 }
 
-func (g *Grid) boxInGrid(r image.Rectangle) bool {
-	if r.Min.X < g.leftMargin || r.Min.Y < g.topMargin {
+// boxInGrid returns true if r is entirely within the grid rectangle
+func (g *Grid) tileCompletelyInGrid(t *Tile) bool {
+	if t.pos.X < g.gridRectangle.Min.X {
 		return false
 	}
-	if r.Max.X > g.leftMargin+(g.cellSize*g.cellsAcross) {
+	if t.pos.Y < g.gridRectangle.Min.Y {
 		return false
 	}
-	if r.Max.Y > g.topMargin+(g.cellSize*g.cellsDown) {
+	if t.pos.X+g.tileSize > g.gridRectangle.Max.X {
+		return false
+	}
+	if t.pos.Y+g.tileSize > g.gridRectangle.Max.Y {
 		return false
 	}
 	return true
 }
 
-func (g *Grid) largestCellIntersection(tbox image.Rectangle) *Cell {
-	var largestArea int = 0
-	var largestCell *Cell = nil
-	for _, c := range g.cells {
-		inter := c.hitbox.Intersect(tbox)
-		if !inter.Empty() {
-			area := inter.Dx() * inter.Dy()
-			if area > largestArea {
-				largestArea = area
-				largestCell = c
-			}
-		}
-	}
-	return largestCell
-}
-
-func (g *Grid) largestTileIntersection(t1 *Tile, t1box image.Rectangle) *Tile {
+func (g *Grid) largestTileIntersection(t1 *Tile) *Tile {
 	var largestArea int
 	var largestTile *Tile
+	t1rect := t1.rectangle()
 	for _, t2 := range g.tiles {
 		if t1 == t2 {
 			continue
 		}
-		t2box := util.MakeHitbox(t2.pos, g.cellSize)
-		inter := t2box.Intersect(t1box)
+		t2rect := t2.rectangle()
+		inter := t2rect.Intersect(t1rect)
 		if !inter.Empty() {
 			area := inter.Dx() * inter.Dy()
 			if area > largestArea {
@@ -220,6 +159,7 @@ func (g *Grid) strokeStart(v stroke.StrokeEvent) {
 	if t := g.findTileAt(v.X, v.Y); t != nil {
 		g.stroke.SetDraggedObject(t)
 		t.startDrag()
+		t.velocity = 0
 		// fmt.Println("drag start", t.value)
 	} else {
 		g.stroke.Cancel()
@@ -231,25 +171,28 @@ func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
 		tdragged := obj // to make this more readable
-		dx, dy := v.Stroke.PositionDiff()
+		oldPos := tdragged.pos
+
+		tdragged.dragBy(v.Stroke.PositionDiff())
 
 		// disallow move if tile goes off grid canvas
-		pos0 := tdragged.possibleDragBy(dx, dy)
-		tbox := util.MakeHitbox(pos0, g.cellSize)
-		if !g.boxInGrid(tbox) {
+		if !g.tileCompletelyInGrid(tdragged) {
+			tdragged.setPos(oldPos)
+			fmt.Println("dragged tile going off grid")
 			break
 		}
 
 		// disallow move if tile moves over another tile with different value
-		tdst := g.largestTileIntersection(tdragged, tbox)
+		tdst := g.largestTileIntersection(tdragged)
 		if tdst == nil {
 			// move to an empty cell
-			tdragged.dragBy(dx, dy)
 		} else if tdst.value == tdragged.value {
-			tdragged.dragBy(dx, dy)
-			// tdragged.stopDrag()
-			// g.mergeTiles(tdst, tdragged)
-			// g.incMoves()
+			// move to another tile with same value
+			g.mergeTiles(tdst, tdragged)
+			g.incMoves()
+		} else {
+			tdragged.setPos(oldPos)
+			fmt.Println("dragged tile overlap with", tdst.value)
 		}
 	}
 }
@@ -260,51 +203,11 @@ func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 		if !obj.wasDragged() {
 			break
 		}
-
-		tdragged := obj // to make this more readable
-		tbox := util.MakeHitbox(tdragged.pos, g.cellSize)
-		tdst := g.largestTileIntersection(tdragged, tbox)
-		if tdst == nil {
-			fmt.Println("strokeStop: tile dropped on empty cell")
-
-			// dropped on an empty cell
-			sound.Play("Drop")
-			if cdragged, ok := g.ctmap.GetInverse(tdragged); !ok {
-				fmt.Println("strokeStop: error: dragged tile has no home cell!?")
-				obj.cancelDrag()
-			} else {
-				cdst := g.largestCellIntersection(tbox)
-				if cdst == nil {
-					fmt.Println("strokeStop: error: tile is nowhere")
-					obj.cancelDrag()
-				} else if cdragged == cdst {
-					fmt.Println("strokeStop: tile is being put back")
-					obj.cancelDrag()
-				} else {
-					if g.ctmap.Exists(cdst) {
-						fmt.Println("strokeStop: error: there is a tile here!")
-						obj.cancelDrag()
-					} else {
-						obj.stopDrag()
-						g.moveTile(cdragged, cdst)
-						g.incMoves()
-					}
-				}
-			}
-		} else if tdst == tdragged {
-			fmt.Println("strokeStop: tile dragged into itself")
-			obj.cancelDrag()
-		} else if tdst.value == tdragged.value {
-			obj.stopDrag()
-			// dropped on a tile of same value
-			g.mergeTiles(tdst, tdragged)
-			g.incMoves()
-		} else {
-			// just dropped
-			sound.Play("Drop")
-			fmt.Println("strokeStop: tile just dropped")
-			obj.cancelDrag()
-		}
+		// TODO sounds merging lerping and all sorts
+		sound.Play("Drop")
+		obj.stopDrag()
+		obj.snapToPile()
+		g.incMoves()
 	}
 }
 
@@ -339,43 +242,11 @@ func (g *Grid) NotifyCallback(v stroke.StrokeEvent) {
 	}
 }
 
-func (g *Grid) moveTile(src, dst *Cell) {
-	// get the tile linked to the src cell
-	t, ok := g.ctmap.Get(src)
-	if !ok {
-		log.Panic("moveTile: src cell has no tile")
-	}
-
-	g.ctmap.DeleteInverse(t) // make the tile t homeless
-	g.ctmap.Insert(dst, t)   // link the tile t to the dst cell
-
-	t.lerpTo(dst.pos)
-	// t.pos = dst.pos
-	// fmt.Println("moving", src.x, src.y, "to", dst.x, dst.y)
-}
-
-// func (g *Grid) deleteTile0(t *Tile) {
-// 	i := util.IndexOf(g.tiles, t)
-// 	if i == -1 {
-// 		log.Panic("deleteTile: tile is not in tiles")
-// 	}
-// 	// make t homeless
-// 	t.cell.tile = nil
-// 	t.cell = nil
-// 	// delete t with GC
-// 	if i < len(g.tiles)-1 {
-// 		copy(g.tiles[i:], g.tiles[i+1:])
-// 	}
-// 	g.tiles[len(g.tiles)-1] = nil // or the zero value of T
-// 	g.tiles = g.tiles[:len(g.tiles)-1]
-// }
-
 func (g *Grid) deleteTile(t *Tile) {
 	if t.beingDragged {
 		log.Println("deleteTile: beingDragged")
 		return
 	}
-	g.ctmap.DeleteInverse(t) // make the tile t homeless
 	g.tiles = slices.DeleteFunc(g.tiles, func(t0 *Tile) bool {
 		return t == t0
 	})
@@ -388,18 +259,12 @@ func (g *Grid) mergeTiles(fixed, floater *Tile) {
 	}
 	g.tilebag = append(g.tilebag, floater.value)
 
-	dst, ok := g.ctmap.GetInverse(fixed)
-	if !ok {
-		log.Panic("mergeTiles: dst/fixed cell has no tile")
-	}
+	floater.lerpTo(fixed.pos)
 	g.deleteTile(fixed)
 
-	g.ctmap.DeleteInverse(floater) // make the floater tile homeless
-	g.ctmap.Insert(dst, floater)   // link the floater to where fixed was
-	floater.lerpTo(dst.pos)        // lerp floater to it's new cell position
-
 	floater.value += 1
-	dst.startParticles()
+	floater.startParticles()
+
 	g.combo += 1
 	switch g.combo {
 	case 1:
@@ -413,44 +278,72 @@ func (g *Grid) mergeTiles(fixed, floater *Tile) {
 	}
 }
 
-func (g *Grid) gravity1() {
-	// move tile down if cell below is empty
-	for _, tn := range g.tiles {
-		if tn.beingDragged || tn.isLerping {
-			continue
+func (g *Grid) findTileAtY(column int, y int) *Tile {
+	for _, t := range g.tiles {
+		if t.column == column && t.pos.Y == y {
+			return t
 		}
-		cn, ok := g.ctmap.GetInverse(tn)
-		if !ok {
-			log.Panic("gravity1: (1) tile has no cell")
+	}
+	return nil
+}
+
+func (g *Grid) gravity() {
+	for column := 0; column < g.tilesAcross; column++ {
+		tiles := g.getSortedColumnTiles(column)
+		y := g.theBottomLine
+		for _, t := range tiles {
+			if t.beingDragged || t.isLerping {
+				continue
+			}
+			t.lerpTo(image.Point{X: g.leftMargin + (column * g.tileSize), Y: y})
+			y -= g.tileSize
 		}
-		if cs := cn.S; cs != nil {
-			if !g.ctmap.Exists(cs) {
-				// there is no tile in this cell
-				g.moveTile(cn, cs)
-				return
+	}
+}
+
+func (g *Grid) postGravityMerging() {
+	for column := 0; column < g.tilesAcross; column++ {
+		tiles := g.getSortedColumnTiles(column)
+		for i := 1; i < len(tiles); i++ {
+			ts := tiles[i-1]
+			tn := tiles[i]
+			if tn.beingDragged || tn.isLerping {
+				continue
+			}
+			if ts.beingDragged || ts.isLerping {
+				continue
+			}
+			if tn.value == ts.value {
+				g.mergeTiles(ts, tn)
+				break
 			}
 		}
 	}
-	// merge any stacked tiles of same value
-	for _, tn := range g.tiles {
-		if tn.beingDragged || tn.isLerping {
-			continue
-		}
-		cn, ok := g.ctmap.GetInverse(tn)
-		if !ok {
-			log.Panic("gravity1: (2) tile has no cell")
-		}
-		if cs := cn.S; cs != nil {
-			if ts, ok := g.ctmap.Get(cs); ok {
-				if !(ts.beingDragged || ts.isLerping) {
-					if ts.value == tn.value {
-						g.mergeTiles(ts, tn)
-						return
-					}
-				}
-			}
+}
+
+func (g *Grid) getSortedColumnTiles(column int) []*Tile {
+	var tiles []*Tile
+	for _, t := range g.tiles {
+		if t.column == column {
+			tiles = append(tiles, t)
 		}
 	}
+	sort.Slice(tiles, func(a, b int) bool {
+		return tiles[a].pos.Y > tiles[b].pos.Y // descending order
+	})
+	// slices.SortFunc[*Tile](tiles, func(a, b int) bool {
+	// 	return tiles[a].pos.Y > tiles[b].pos.Y
+	// })
+	return tiles
+}
+
+func (g *Grid) rectangleContainsTiles(rect image.Rectangle) bool {
+	for _, t := range g.tiles {
+		if rect.Overlaps(t.rectangle()) {
+			return true
+		}
+	}
+	return false
 }
 
 // Layout implements ebiten.Game's Layout
@@ -459,35 +352,63 @@ func (g *Grid) Layout(outsideWidth, outsideHeight int) (int, int) {
 		return outsideWidth, outsideHeight
 	}
 
-	szw := outsideWidth / g.cellsAcross
-	szh := outsideHeight / g.cellsDown
-	var newCellSize int
+	szw := outsideWidth / g.tilesAcross
+	szh := outsideHeight / (g.tilesDown + 2) // add header and footer rows
+	var newTileSize int
 	if szw < szh {
-		newCellSize = szw
+		newTileSize = szw
 	} else {
-		newCellSize = szh
+		newTileSize = szh
 	}
+	g.tileSize = newTileSize
 
-	g.cellSize = newCellSize
-	g.leftMargin = (outsideWidth - (g.cellsAcross * g.cellSize)) / 2
-	g.topMargin = (outsideHeight - (g.cellsDown * g.cellSize)) / 2
-	// fmt.Println("Cell size", g.cellSize, "Left margin", g.leftMargin, "Top margin", g.topMargin)
+	g.leftMargin = (outsideWidth - (g.tilesAcross * g.tileSize)) / 2
+	g.topMargin = (outsideHeight - ((g.tilesDown + 2) * g.tileSize)) / 2
 
-	for _, c := range g.cells {
-		c.setPos(g.leftMargin+(c.x*g.cellSize), g.topMargin+(c.y*g.cellSize))
+	g.headerRectangle = image.Rectangle{
+		Min: image.Point{X: g.leftMargin, Y: g.topMargin},
+		Max: image.Point{X: g.leftMargin + (g.tilesAcross * g.tileSize), Y: g.topMargin + g.tileSize},
 	}
+	g.gridRectangle = image.Rectangle{
+		Min: image.Point{X: g.leftMargin, Y: g.headerRectangle.Max.Y},
+		Max: image.Point{X: g.leftMargin + (g.tilesAcross * g.tileSize), Y: g.topMargin + g.tileSize + (g.tilesDown * g.tileSize)},
+	}
+	g.footerRectangle = image.Rectangle{
+		Min: image.Point{X: g.leftMargin, Y: g.gridRectangle.Max.Y},
+		Max: image.Point{X: g.leftMargin + (g.tilesAcross * g.tileSize), Y: g.topMargin + g.tileSize + g.tileSize + (g.tilesDown * g.tileSize)},
+	}
+	g.theBottomLine = g.gridRectangle.Max.Y - g.tileSize
+
 	clear(TileImgLib)
 	// for tv := range TileImgLib {
 	// 	delete(TileImgLib, tv)
 	// }
-	TileFontFace = tileFontFace(g.cellSize / 2)
+	TileFontFace = tileFontFace(g.tileSize / 2)
 
-	for _, t := range g.tiles {
-		if c, ok := g.ctmap.GetInverse(t); ok {
-			t.pos = c.pos
-			// t.lerpTo(c.pos)
-			// fmt.Println(c.pos, t.value, t.pos)
+	// reposition the tiles
+	for column := 0; column < g.tilesAcross; column++ {
+		tiles := g.getSortedColumnTiles(column)
+		y := g.gridRectangle.Max.Y - g.tileSize
+		for _, t := range tiles {
+			t.setPos(image.Point{X: g.leftMargin + (column * g.tileSize), Y: y})
+			y -= g.tileSize
 		}
+	}
+
+	if DebugMode {
+		dc := gg.NewContext(g.tilesAcross*g.tileSize, g.tileSize)
+		dc.SetColor(color.RGBA{0xf0, 0x80, 0x80, 0xff})
+		dc.DrawRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tileSize))
+		dc.Fill()
+		dc.Stroke()
+		g.imgHeaderFooter = ebiten.NewImageFromImage(dc.Image())
+
+		dc = gg.NewContext(g.tilesAcross*g.tileSize, g.tilesDown*g.tileSize)
+		dc.SetColor(color.RGBA{0x80, 0xf0, 0x80, 0xff})
+		dc.DrawRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tilesDown*g.tileSize))
+		dc.Fill()
+		dc.Stroke()
+		g.imgGrid = ebiten.NewImageFromImage(dc.Image())
 	}
 
 	g.oldWindowWidth = outsideWidth
@@ -508,44 +429,43 @@ func (g *Grid) Update() error {
 		}
 	}
 
-	if inpututil.IsKeyJustReleased(ebiten.KeyC) {
-		for _, c := range g.cells {
-			if t, ok := g.ctmap.Get(c); ok {
-				if c2, ok := g.ctmap.GetInverse(t); ok {
-					if c != c2 {
-						fmt.Println("fail at cell", c.x, c.y)
-					}
-				}
-			}
-		}
-		for _, t := range g.tiles {
-			if c, ok := g.ctmap.GetInverse(t); !ok {
-				fmt.Println("homeless tile", t.value)
-			} else {
-				if t.pos != c.pos {
-					fmt.Println("tile/cell pos fail at tile", t.value)
-				}
-			}
-		}
+	if inpututil.IsKeyJustPressed(ebiten.KeyN) {
+		g.addFooterRow()
+		g.lerpUp()
 	}
 
-	for _, c := range g.cells {
-		c.update()
-	}
 	for _, t := range g.tiles {
 		t.update()
 	}
 
-	g.gravity1()
+	if !g.rectangleContainsTiles(g.footerRectangle) {
+		g.gravity()
+		g.postGravityMerging()
+	}
 
 	return nil
 }
 
 // Draw draws the current GameScene to the given screen
 func (g *Grid) Draw(screen *ebiten.Image) {
+
 	screen.Fill(ColorBackground)
-	for _, c := range g.cells {
-		c.draw(screen)
+	if g.imgHeaderFooter != nil {
+		if g.rectangleContainsTiles(g.headerRectangle) {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(g.headerRectangle.Min.X), float64(g.headerRectangle.Min.Y))
+			screen.DrawImage(g.imgHeaderFooter, op)
+		}
+		if g.rectangleContainsTiles(g.footerRectangle) {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(g.footerRectangle.Min.X), float64(g.footerRectangle.Min.Y))
+			screen.DrawImage(g.imgHeaderFooter, op)
+		}
+	}
+	if g.imgGrid != nil {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(g.gridRectangle.Min.X), float64(g.gridRectangle.Min.Y))
+		screen.DrawImage(g.imgGrid, op)
 	}
 	for _, t := range g.tiles {
 		if !t.beingDragged {

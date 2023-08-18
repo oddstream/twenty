@@ -1,15 +1,47 @@
 package main
 
 import (
+	_ "embed" // go:embed only allowed in Go files that import "embed"
+	"math"
+
+	"bytes"
 	"fmt"
 	"image"
 	"image/color"
+	"log"
 	"time"
 
 	"github.com/fogleman/gg"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"oddstream.games/grot/util"
 )
+
+//go:embed assets/particles.png
+var particlesBytes []byte
+
+var particlesImage *ebiten.Image
+
+const tileSize = 150
+const tilesAcross = 6
+const tilesDown = 3
+
+var particleSubImages = [tilesAcross * tilesDown]*ebiten.Image{}
+
+func init() {
+	// Decode an image from the image file's byte slice
+	img, _, err := image.Decode(bytes.NewReader(particlesBytes))
+	if err != nil {
+		log.Fatal(err)
+	}
+	particlesImage = ebiten.NewImageFromImage(img)
+	for i := 0; i < tilesAcross*tilesDown; i++ {
+		var sx int = tileSize * (i % tilesAcross)
+		var sy int = tileSize * (i / tilesAcross)
+		r := image.Rect(sx, sy, sx+tileSize, sy+tileSize)
+		particleSubImages[i] = particlesImage.SubImage(r).(*ebiten.Image)
+	}
+}
 
 const aniSpeed = 0.25
 
@@ -18,8 +50,8 @@ type TileValue int
 type Tile struct {
 	grid *Grid
 	// pos of card on grid
-	pos  image.Point
-	pile int
+	pos         image.Point
+	row, column int
 
 	// lerping things
 	src           image.Point
@@ -31,7 +63,9 @@ type Tile struct {
 	dragStart    image.Point
 	beingDragged bool
 
-	value TileValue
+	value         TileValue
+	particleFrame int
+	velocity      int
 }
 
 type TileColors struct {
@@ -62,12 +96,13 @@ var tileColorMap = map[TileValue]TileColors{
 }
 
 func NewTile(grid *Grid, pos image.Point, value TileValue) *Tile {
-	t := &Tile{grid: grid, pos: pos, value: value}
+	t := &Tile{grid: grid, pos: pos, value: value, particleFrame: -1}
+	t.calcRowColumn()
 	return t
 }
 
 func (t *Tile) makeTileImg() *ebiten.Image {
-	isz := t.grid.cellSize
+	isz := t.grid.tileSize
 	if isz == 0 {
 		return nil
 	}
@@ -99,18 +134,30 @@ func (t *Tile) makeTileImg() *ebiten.Image {
 	return ebiten.NewImageFromImage(dc.Image())
 }
 
+func (t *Tile) calcRowColumn() {
+	y := float64(t.pos.Y - t.grid.gridRectangle.Min.Y)
+	t.row = int(math.Round(y / float64(t.grid.tileSize)))
+	x := float64(t.pos.X - t.grid.gridRectangle.Min.X)
+	t.column = int(math.Round(x / float64(t.grid.tileSize)))
+}
+
+func (t *Tile) setPos(pos image.Point) {
+	t.pos = pos
+	t.calcRowColumn()
+}
+
 func (t *Tile) lerpTo(dst image.Point) {
 	if dst.Eq(t.pos) {
 		t.isLerping = false
-		// fmt.Println("tile already at dst", t.value)
+		fmt.Println("tile already at dst", t.value)
 		return
 	}
 	if t.isLerping && dst.Eq(t.dst) {
-		// fmt.Println("lerp repeat request", t.value)
+		fmt.Println("lerp repeat request", t.value)
 		return // repeat request to lerp to dst
 	}
 	if t.isLerping {
-		// fmt.Println("extended lerp", t.value)
+		fmt.Println("extended lerp", t.value)
 		// leave src
 		t.dst = dst
 		// leave lerpStartTime
@@ -131,12 +178,9 @@ func (t *Tile) startDrag() {
 	t.beingDragged = true
 }
 
-func (t *Tile) possibleDragBy(dx, dy int) image.Point {
-	return t.dragStart.Add(image.Point{dx, dy})
-}
-
 func (t *Tile) dragBy(dx, dy int) {
 	t.pos = t.dragStart.Add(image.Point{dx, dy})
+	t.calcRowColumn()
 }
 
 func (t *Tile) stopDrag() {
@@ -150,6 +194,31 @@ func (t *Tile) cancelDrag() {
 
 func (t *Tile) wasDragged() bool {
 	return !t.pos.Eq(t.dragStart)
+}
+
+func (t *Tile) hitbox() image.Rectangle {
+	return util.MakeHitbox(t.pos, t.grid.tileSize)
+	// sz := t.grid.tileSize
+	// hgap := sz / 20
+	// vgap := sz / 40
+	// return image.Rectangle{
+	// 	Min: image.Point{t.pos.X + hgap, t.pos.Y + vgap},
+	// 	Max: image.Point{t.pos.X + sz - hgap*2, t.pos.Y + sz - vgap*2}}
+}
+
+func (t *Tile) rectangle() image.Rectangle {
+	return image.Rectangle{
+		Min: t.pos,
+		Max: image.Point{t.pos.X + t.grid.tileSize, t.pos.Y + t.grid.tileSize},
+	}
+}
+
+func (t *Tile) startParticles() {
+	t.particleFrame = 0
+}
+
+func (t *Tile) snapToPile() {
+	t.pos.X = t.grid.gridRectangle.Min.X + (t.column * t.grid.tileSize)
 }
 
 func (t *Tile) update() error {
@@ -166,7 +235,6 @@ func (t *Tile) update() error {
 			t.pos.Y = int(util.Lerp(float64(t.src.Y), float64(t.dst.Y), tm))
 		}
 	}
-
 	return nil
 }
 
@@ -184,11 +252,21 @@ func (t *Tile) draw(screen *ebiten.Image) {
 	op.GeoM.Translate(float64(t.pos.X), float64(t.pos.Y))
 	screen.DrawImage(img, op)
 
-	// if DebugMode {
-	// 	c, ok := t.grid.ctmap.GetInverse(t)
-	// 	if ok {
-	// 		str := fmt.Sprintf("%d,%d ", c.x, c.y)
-	// 		ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
-	// 	}
-	// }
+	i := t.particleFrame
+	if i >= 0 && i <= 17 {
+		op = &ebiten.DrawImageOptions{}
+		sz := float64(t.grid.tileSize)
+		op.GeoM.Scale(sz/tileSize, sz/tileSize)
+		op.GeoM.Translate(float64(t.pos.X), float64(t.pos.Y))
+		screen.DrawImage(particleSubImages[i], op)
+		t.particleFrame += 1
+		if t.particleFrame > 17 {
+			t.particleFrame = -1
+		}
+	}
+
+	if DebugMode {
+		str := fmt.Sprintf("%d,%d := %d,%d", t.pos.X, t.pos.Y, t.row, t.column)
+		ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
+	}
 }
