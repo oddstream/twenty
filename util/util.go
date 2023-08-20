@@ -63,28 +63,23 @@ func Smootherstep(A, B, v float64) float64 {
 // 	return (B * v) + (A * (1.0 - v))
 // }
 
-// func EaseInCubic(A, B, v float64) float64 {
-// 	v = v * v * v
-// 	return (B * v) + (A * (1.0 - v))
-// }
-
-func EaseOutBounce(A, B, x float64) float64 {
-	const n1 = 7.5625
-	const d1 = 2.75
-
-	if x < 1/d1 {
-		x = n1 * x * x
-	} else if x < 2/d1 {
-		x -= 1.5
-		x = n1*x/d1*x + 0.75
-	} else if x < 2.5/d1 {
-		x -= 2.25
-		x = n1*x/d1*x + 0.9375
-	} else {
-		x -= 2.625
-		x = n1*x/d1*x + 0.984375
+func EaseInCubic(A, B, v float64) float64 {
+	v = v * v * v
+	if A < 0.0 {
+		A = 0.0
 	}
-	return (B * x) + (A * (1.0 - x))
+	if B < 0.0 {
+		B = 0.0
+	}
+	if v > 1.0 {
+		v = 1.0
+	}
+	return (B * v) + (A * (1.0 - v))
+}
+
+func EaseInQuad(A, B, v float64) float64 {
+	v = v * v * v * v
+	return (B * v) + (A * (1.0 - v))
 }
 
 // Normalize is the opposite of lerp. Instead of a range and a factor, we give a range and a value to find out the factor.
@@ -99,13 +94,13 @@ func MapValue(value, fromMin, fromMax, toMin, toMax float64) float64 {
 }
 
 // Clamp a value between min and max values
-func Clamp(value, min, max float64) float64 {
-	return math.Min(math.Max(value, min), max)
+func Clamp(value, _min, _max float64) float64 {
+	return math.Min(math.Max(value, _min), _max)
 }
 
 // ClampInt a value between min and max values
-func ClampInt(value, min, max int) int {
-	return Min(Max(value, min), max)
+func ClampInt(value, _min, _max int) int {
+	return Min(Max(value, _min), _max)
 }
 
 // Abs returns the absolute value of x
@@ -190,12 +185,4 @@ func Contains[T comparable](elems []T, v T) bool {
 		}
 	}
 	return false
-}
-
-func MakeHitbox(pos image.Point, sz int) image.Rectangle {
-	hgap := sz / 20
-	vgap := sz / 40
-	return image.Rectangle{
-		Min: image.Point{pos.X + hgap, pos.Y + vgap},
-		Max: image.Point{pos.X + sz - hgap*2, pos.Y + sz - vgap*2}}
 }

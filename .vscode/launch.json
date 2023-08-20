@@ -5,13 +5,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Package",
+      "name": "Debug Launch",
       "type": "go",
       "request": "launch",
       "mode": "debug",
       "program": "${workspaceFolder}",
       "args": ["-debug", "-width=1080", "-height=1080"],
     //   "buildFlags": "-tags=desktop"
-    }
-  ]
+    },
+    {
+		"name": "Launch",
+		"type": "go",
+		"request": "launch",
+		"mode": "debug",
+		"program": "${workspaceFolder}",
+		"args": ["-width=1080", "-height=1080"],
+	  //   "buildFlags": "-tags=desktop"
+	  }
+	]
 }

@@ -15,6 +15,8 @@ import (
 	"github.com/fogleman/gg"
 )
 
+var _ GameScene = (*Splash)(nil)
+
 //go:embed assets/raccoon280x180.png
 var logoBytes []byte
 

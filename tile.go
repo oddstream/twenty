@@ -149,7 +149,7 @@ func (t *Tile) setPos(pos image.Point) {
 func (t *Tile) lerpTo(dst image.Point) {
 	if dst.Eq(t.pos) {
 		t.isLerping = false
-		fmt.Println("tile already at dst", t.value)
+		// fmt.Println("tile pos already at dst", t.value, t.pos)
 		return
 	}
 	if t.isLerping && dst.Eq(t.dst) {
@@ -196,28 +196,24 @@ func (t *Tile) wasDragged() bool {
 	return !t.pos.Eq(t.dragStart)
 }
 
-func (t *Tile) hitbox() image.Rectangle {
-	return util.MakeHitbox(t.pos, t.grid.tileSize)
-	// sz := t.grid.tileSize
-	// hgap := sz / 20
-	// vgap := sz / 40
-	// return image.Rectangle{
-	// 	Min: image.Point{t.pos.X + hgap, t.pos.Y + vgap},
-	// 	Max: image.Point{t.pos.X + sz - hgap*2, t.pos.Y + sz - vgap*2}}
-}
-
 func (t *Tile) rectangle() image.Rectangle {
+	sz := t.grid.tileSize
+	hgap := sz / 10
+	vgap := sz / 10
 	return image.Rectangle{
-		Min: t.pos,
-		Max: image.Point{t.pos.X + t.grid.tileSize, t.pos.Y + t.grid.tileSize},
-	}
+		Min: image.Point{t.pos.X + hgap, t.pos.Y + vgap},
+		Max: image.Point{t.pos.X + sz - hgap*2, t.pos.Y + sz - vgap*2}}
+	// return image.Rectangle{
+	// 	Min: t.pos,
+	// 	Max: image.Point{t.pos.X + t.grid.tileSize, t.pos.Y + t.grid.tileSize},
+	// }
 }
 
 func (t *Tile) startParticles() {
 	t.particleFrame = 0
 }
 
-func (t *Tile) snapToPile() {
+func (t *Tile) snapToColumn() {
 	t.pos.X = t.grid.gridRectangle.Min.X + (t.column * t.grid.tileSize)
 }
 
@@ -231,8 +227,10 @@ func (t *Tile) update() error {
 			// because aniSpeed is the number of seconds the tile will take to transition.
 			// with aniSpeed at 0.75, this happens (for example) 45 times (we are at @ 60Hz)
 			var tm float64 = time.Since(t.lerpStartTime).Seconds() / aniSpeed
-			t.pos.X = int(util.Lerp(float64(t.src.X), float64(t.dst.X), tm))
-			t.pos.Y = int(util.Lerp(float64(t.src.Y), float64(t.dst.Y), tm))
+			t.setPos(image.Point{
+				X: int(util.Lerp(float64(t.src.X), float64(t.dst.X), tm)),
+				Y: int(util.EaseInCubic(float64(t.src.Y), float64(t.dst.Y), tm)),
+			})
 		}
 	}
 	return nil
@@ -266,7 +264,7 @@ func (t *Tile) draw(screen *ebiten.Image) {
 	}
 
 	if DebugMode {
-		str := fmt.Sprintf("%d,%d := %d,%d", t.pos.X, t.pos.Y, t.row, t.column)
+		str := fmt.Sprintf("%d,%d := %d,%d", t.pos.X, t.pos.Y, t.column, t.row)
 		ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
 	}
 }

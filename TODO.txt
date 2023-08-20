@@ -1,3 +1,23 @@
+tiles with the same value are transparent to each other -
+they can drag or lerp over each other
+a separate deamon merges stacked tiles with the same row, column
+
+incMoves() should post a "add footer row" message
+that is processed when there is no stroke
+
+merge after:
+	init two rows
+	tile lerp completes
+	merging
+gravity after:
+	releasing mouse button
+	a tile changes row
+	stacked merging
+
+queue of two types of job, "gravity" and "merge" + column number
+
+check for game over when queue is empty
+
 are cells even required?
 why not piles?
 tile wants to be at x = margin + pile pos

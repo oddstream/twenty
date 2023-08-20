@@ -1,9 +1,14 @@
 {
-	// "editor.fontFamily": "Droid Sans Mono",
+	// https://www.programmingfonts.org/
+	"editor.fontFamily": "Roboto Mono",
+	// "editor.fontFamily": "CommitMono", // https://commitmono.com/
 	// "editor.fontFamily": "Hack",	// like DejaVu Sans Mono
+	// "editor.fontFamily": "Bitstream Vera Sans Mono",
+	// "editor.fontFamily": "Droid Sans Mono",
 	// "editor.fontFamily": "DejaVu Sans Mono",
 	// "editor.fontFamily": "Fantasque Sans Mono",	//https://github.com/belluzj/fantasque-sans/
 	// "editor.fontFamily": "Comic Mono", // https://dtinth.github.io/comic-mono-font/
+	// "editor.fontFamily": "Comic Shanns",
 	// "editor.fontFamily": "Liberation Mono", // lighter Droid Sans Mono
 	// "editor.fontFamily": "Consolas",
 	// "editor.fontFamily": "JetBrains Mono",
@@ -13,7 +18,7 @@
 	// "editor.fontFamily": "Ubuntu Mono",	// too small
 	// "editor.fontFamily": "Inconsolata",	// too small
 	// "editor.fontFamily": "Go Mono",	// too serifed
-	// "editor.fontFamily": "Cascadia Code",	// too fat
+	// "editor.fontFamily": "Cascadia Code",
 	"editor.tokenColorCustomizations": {
 		"textMateRules": [
 		{
