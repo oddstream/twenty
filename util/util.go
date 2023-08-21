@@ -79,6 +79,15 @@ func EaseInCubic(A, B, v float64) float64 {
 
 func EaseInQuad(A, B, v float64) float64 {
 	v = v * v * v * v
+	if A < 0.0 {
+		A = 0.0
+	}
+	if B < 0.0 {
+		B = 0.0
+	}
+	if v > 1.0 {
+		v = 1.0
+	}
 	return (B * v) + (A * (1.0 - v))
 }
 

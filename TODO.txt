@@ -1,74 +1,19 @@
+[ ] track and display 'score' tile in top right corner
+
+[ ] twenty: just moving a tile doesn't count as a row-creating move
+	seems to be 6, 7 or 8 mereges
+[ ] 12 second timer
+	rounded rect grey bar in header area
+	light grey background, same as grid
+	darker grey shrinks from right to left
+[ ] new footer row does not contain any merges with tiles above
+[ ] don't drag a lerping tile
+[ ] don't add footer row if there is any stroke, dragging, lerping
+[X] game over when tiles in header
+
 tiles with the same value are transparent to each other -
 they can drag or lerp over each other
 a separate deamon merges stacked tiles with the same row, column
-
-incMoves() should post a "add footer row" message
-that is processed when there is no stroke
-
-merge after:
-	init two rows
-	tile lerp completes
-	merging
-gravity after:
-	releasing mouse button
-	a tile changes row
-	stacked merging
-
-queue of two types of job, "gravity" and "merge" + column number
-
-check for game over when queue is empty
-
-are cells even required?
-why not piles?
-tile wants to be at x = margin + pile pos
-with margin=10 and pileWidth=100
-pos 255 is pile 255-10=245, 245/100=2
-pos 45 is pile 45-10/100=0
-then pile is just a number, not a struct
-gravity just drops each tile while the bottom of it's outerbox is > top of box below on same pile
-can then use easeInout for vertical, smoothstep for horz
-
-don't need gravity
-because AT MOST one tile will be falling
-and the tile under it will ALWAYS be static
-need to know if each tile has a tile immediately under it
-and lerp if not
-
-under gravity, each tile moves down
-unless tile is at bottom of grid
-or if there is no tile below
-so gravity needs to work from bottom up
-so tiles need to be sorted into descending pos.Y order first eg y=300 200 100
-
-tiles can fall under gravity with acceleration, not just one pixel per tick
-const gravity = 9.8
-object.velocity += gravity * float64(step)
-object.position += object.velocity * float64(step)
-until they get to bottom of grid
-or intersect with another tile
-if that tile has same value, merge, else go back up and stop
-
-helper functions:
-	func getTiles(pile int) []*Tile
-	sort []*Tile into ascending/decending pos.Y order
-	reposition tiles (after layout)
-	getFooterTiles() []*Tile
-	getHeaderTiles() []*Tile
-	calcColumn
-	0    1      2      3
-	0    100    200    300
-    column = math.Round(pos.X / tileWidth)
-
-cube.Position.X = Math.round(cube.Position.X / gridCubeWidth) * gridCubeWidth;
-175 / 100 * 100 =
-
-
-
-moves
-	onto empty cell
-	onto tile with same value
-happens in strokeStop
-strokeMOve should just do bounds checking
 
 [X] stop dragging outside grid
 [ ] stop dragging through other tiles

@@ -7,16 +7,18 @@ import (
 	"log"
 	"math/rand"
 	"sort"
+	"time"
 
 	"github.com/fogleman/gg"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"oddstream.games/grot/sound"
 	"oddstream.games/grot/stroke"
 )
 
 var _ GameScene = (*Grid)(nil)
+
+const refreshSeconds float64 = 12.0
 
 // Grid is a container object, for a 2-dimensional array of Cells
 // and a slice of Tiles
@@ -34,14 +36,18 @@ type Grid struct {
 	stroke                          *stroke.Stroke
 	ticks, moves, combo             int
 	gameOver                        bool
-	// cq                              *CmdQueue
-	imgHeaderFooter, imgGrid *ebiten.Image // debug
+	imgHeaderFooter, imgGrid        *ebiten.Image // debug
+	imgTimebarBackground            *ebiten.Image
+	imgTimebarForeground            *ebiten.Image
+	startTime                       time.Time
+	highestValue                    TileValue
+	imgScore                        *ebiten.Image
 }
 
 func NewGrid(across, down int) *Grid {
-	g := &Grid{tilesAcross: across, tilesDown: down}
+	g := &Grid{tilesAcross: across, tilesDown: down, highestValue: 1}
 
-	for i := 0; i < g.tilesAcross*g.tilesDown; i++ {
+	for i := 0; i < (g.tilesAcross+1)*g.tilesDown; i++ {
 		g.tilebag = append(g.tilebag, TileValue(rand.Intn(3)+1))
 	}
 
@@ -52,15 +58,15 @@ func NewGrid(across, down int) *Grid {
 	return g
 }
 
-func (g *Grid) highestValue() TileValue {
-	var highest TileValue
-	for _, t := range g.tiles {
-		if t.value > highest {
-			highest = t.value
-		}
-	}
-	return highest
-}
+// func (g *Grid) highestValue() TileValue {
+// 	var highest TileValue
+// 	for _, t := range g.tiles {
+// 		if t.value > highest {
+// 			highest = t.value
+// 		}
+// 	}
+// 	return highest
+// }
 
 func (g *Grid) addTile(pos image.Point, v TileValue) {
 	t := NewTile(g, pos, v)
@@ -73,10 +79,33 @@ func (g *Grid) shuffleTilebag() {
 	})
 }
 
+func (g *Grid) peekTilebag() TileValue {
+	v := g.tilebag[len(g.tilebag)-1]
+	return v
+}
+
 func (g *Grid) popTilebag() TileValue {
 	v := g.tilebag[len(g.tilebag)-1]
 	g.tilebag = g.tilebag[:len(g.tilebag)-1]
 	return v
+}
+
+func (g *Grid) getNextValue(x int) TileValue {
+	// original game does not add tiles with same value as tile above
+	// not sure if this is by design, or to avoid moving-tile weirdness
+	tabove := g.findTile(g.tilesDown-1, x)
+	if tabove != nil {
+		tries := 0
+		for g.peekTilebag() == tabove.value {
+			tries += 1
+			if tries > 7 {
+				break
+			}
+			// fmt.Println("shuffle", tabove.value)
+			g.shuffleTilebag()
+		}
+	}
+	return g.popTilebag()
 }
 
 func (g *Grid) addFooterRow() {
@@ -86,7 +115,7 @@ func (g *Grid) addFooterRow() {
 	}
 	g.shuffleTilebag()
 	for x := 0; x < g.tilesAcross; x++ {
-		v := g.popTilebag()
+		v := g.getNextValue(x)
 		g.addTile(image.Point{
 			X: g.footerRectangle.Min.X + (x * g.tileSize),
 			Y: g.footerRectangle.Min.Y},
@@ -102,14 +131,14 @@ func (g *Grid) lerpUp() {
 	}
 }
 
-// func (g *Grid) findTile(row, column int) *Tile {
-// 	for _, t := range g.tiles {
-// 		if t.row == row && t.column == column {
-// 			return t
-// 		}
-// 	}
-// 	return nil
-// }
+func (g *Grid) findTile(row, column int) *Tile {
+	for _, t := range g.tiles {
+		if t.row == row && t.column == column {
+			return t
+		}
+	}
+	return nil
+}
 
 func (g *Grid) findTileAt(x, y int) *Tile {
 	for _, t := range g.tiles {
@@ -172,14 +201,18 @@ func (g *Grid) largestTileIntersection(t1 *Tile) (*Tile, int) {
 }
 
 func (g *Grid) strokeStart(v stroke.StrokeEvent) {
-	g.stroke = v.Stroke
+	// g.stroke = v.Stroke
 	if t := g.findTileAt(v.X, v.Y); t != nil {
-		g.stroke.SetDraggedObject(t)
-		t.startDrag()
-		t.velocity = 0
+		if t.isLerping {
+			v.Stroke.Cancel()
+		} else {
+			g.stroke = v.Stroke
+			g.stroke.SetDraggedObject(t)
+			t.startDrag()
+		}
 		// fmt.Println("drag start", t.value)
 	} else {
-		g.stroke.Cancel()
+		v.Stroke.Cancel()
 	}
 	g.combo = 0
 }
@@ -222,7 +255,8 @@ func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 		sound.Play("Drop")
 		obj.stopDrag()
 		obj.snapToColumn()
-		g.incMoves()
+		// in twenty zen, just dropping/moving a tile
+		// does not count toward creating a new row
 	}
 }
 
@@ -360,6 +394,11 @@ func (g *Grid) mergeAllColumns() {
 			}
 			g.tilebag = append(g.tilebag, t.value)
 			seen[key].value++
+			if seen[key].value > g.highestValue {
+				g.highestValue = seen[key].value
+				fmt.Println("SCORE: ", g.highestValue)
+				g.imgScore = nil // this will regenerate pseudo tile image
+			}
 			seen[key].startParticles()
 			g.combo = g.combo + 1
 			switch g.combo {
@@ -372,17 +411,23 @@ func (g *Grid) mergeAllColumns() {
 			case 4:
 				sound.Play("Combo4")
 			}
-			merges++
+			merges += 1
 		} else {
 			seen[key] = t
 		}
 	}
 	if merges > 0 {
+		if merges > 1 {
+			fmt.Println("Super bonus multi combo!", merges)
+		}
 		g.tiles = nil
 		for _, t := range seen {
 			g.tiles = append(g.tiles, t)
 		}
-		g.incMoves()
+		// for merges > 0 {
+		// 	g.incMoves()
+		// 	merges -= 1
+		// }
 	}
 }
 
@@ -465,33 +510,48 @@ func (g *Grid) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if DebugMode {
 		dc := gg.NewContext(g.tilesAcross*g.tileSize, g.tileSize)
 		dc.SetColor(color.RGBA{0x80, 0x40, 0x40, 0xff})
-		dc.DrawRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tileSize))
+		dc.DrawRoundedRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tileSize), float64(g.tileSize)/10)
 		dc.Fill()
 		dc.Stroke()
 		g.imgHeaderFooter = ebiten.NewImageFromImage(dc.Image())
 
 		dc = gg.NewContext(g.tilesAcross*g.tileSize, g.tilesDown*g.tileSize)
 		dc.SetColor(color.RGBA{0x40, 0x80, 0x40, 0xff})
-		dc.DrawRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tilesDown*g.tileSize))
+		dc.DrawRoundedRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tilesDown*g.tileSize), float64(g.tileSize)/10)
 		dc.Fill()
 		dc.Stroke()
 		g.imgGrid = ebiten.NewImageFromImage(dc.Image())
+	}
+	{
+		dc := gg.NewContext(g.tilesAcross*g.tileSize, g.tileSize/4)
+		dc.SetColor(color.RGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff})
+		dc.DrawRoundedRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tileSize/4), float64(g.tileSize)/10)
+		dc.Fill()
+		dc.Stroke()
+		g.imgTimebarBackground = ebiten.NewImageFromImage(dc.Image())
+		dc.Clear()
+		dc.SetColor(color.RGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff})
+		dc.DrawRoundedRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tileSize/4), float64(g.tileSize)/10)
+		dc.Fill()
+		dc.Stroke()
+		g.imgTimebarForeground = ebiten.NewImageFromImage(dc.Image())
 	}
 
 	if g.oldWindowHeight == 0 && g.oldWindowWidth == 0 {
 		fmt.Println("init")
 		for x := 0; x < g.tilesAcross; x++ {
-			v := g.popTilebag()
+			v := g.getNextValue(x)
 			g.addTile(image.Point{
 				X: g.gridRectangle.Min.X + (x * g.tileSize),
 				Y: g.theBottomLine},
 				v)
-			v = g.popTilebag()
+			v = g.getNextValue(x)
 			g.addTile(image.Point{
 				X: g.gridRectangle.Min.X + (x * g.tileSize),
 				Y: g.theBottomLine - g.tileSize},
 				v)
 		}
+		g.startTime = time.Now()
 	}
 
 	g.oldWindowWidth = outsideWidth
@@ -511,7 +571,6 @@ func (g *Grid) Update() error {
 			g.stroke = nil
 		}
 	}
-
 	// if inpututil.IsKeyJustPressed(ebiten.KeyG) {
 	// 	g.gravityAllColumns()
 	// }
@@ -535,18 +594,21 @@ func (g *Grid) Update() error {
 		}
 	}
 
-	// if !g.rectangleContainsTiles(g.footerRectangle) {
-	// 	if cqi, err := g.cq.Remove(); err == nil {
-	// 		switch cqi.cmd {
-	// 		case "gravity":
-	// 			g.gravityColumn(cqi.column)
-	// 		case "merge":
-	// 			g.mergeColumn(cqi.column)
-	// 		default:
-	// 			fmt.Println("unknown cmd item", cqi.cmd)
-	// 		}
-	// 	}
-	// }
+	if !g.gameOver && g.ticks%60 == 0 {
+		if g.rectangleContainsTiles(g.headerRectangle) {
+			// or, could check for tile.row < 0
+			g.gameOver = true
+			fmt.Println("GAME OVER", g.highestValue)
+			sound.Play("GameOver")
+		}
+	}
+
+	tm := time.Since(g.startTime).Seconds()
+	if tm > refreshSeconds {
+		g.addFooterRow()
+		g.lerpUp()
+		g.startTime = time.Now()
+	}
 
 	return nil
 }
@@ -567,6 +629,29 @@ func (g *Grid) Draw(screen *ebiten.Image) {
 			screen.DrawImage(g.imgHeaderFooter, op)
 		}
 	}
+	if g.imgTimebarBackground != nil {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(g.headerRectangle.Min.X), float64(g.headerRectangle.Max.Y-g.tileSize/4))
+		screen.DrawImage(g.imgTimebarBackground, op)
+	}
+	if g.imgTimebarForeground != nil {
+		var tm float64 = time.Since(g.startTime).Seconds()
+		w := float64(g.headerRectangle.Dx()) * (tm / refreshSeconds)
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(w/float64(g.headerRectangle.Dx()), 1.0)
+		op.GeoM.Translate(float64(g.headerRectangle.Min.X), float64(g.headerRectangle.Max.Y-g.tileSize/4))
+		screen.DrawImage(g.imgTimebarForeground, op)
+	}
+
+	if g.imgScore == nil {
+		t := &Tile{grid: g, value: g.highestValue}
+		g.imgScore = t.makeTileImg()
+	}
+	op := &ebiten.DrawImageOptions{}
+	// op.GeoM.Scale(0.75, 0.75)
+	op.GeoM.Translate(float64(g.headerRectangle.Max.X-g.tileSize), float64(g.headerRectangle.Min.Y))
+	screen.DrawImage(g.imgScore, op)
+
 	if g.imgGrid != nil {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Translate(float64(g.gridRectangle.Min.X), float64(g.gridRectangle.Min.Y))
@@ -582,5 +667,5 @@ func (g *Grid) Draw(screen *ebiten.Image) {
 			t.draw(screen)
 		}
 	}
-	ebitenutil.DrawLine(screen, float64(g.gridRectangle.Min.X), float64(g.theBottomLine), float64(g.gridRectangle.Max.X), float64(g.theBottomLine), color.RGBA{0xff, 0, 0, 0xff})
+	// ebitenutil.DrawLine(screen, float64(g.gridRectangle.Min.X), float64(g.theBottomLine), float64(g.gridRectangle.Max.X), float64(g.theBottomLine), color.RGBA{0xff, 0, 0, 0xff})
 }

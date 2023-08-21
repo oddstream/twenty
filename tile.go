@@ -43,7 +43,7 @@ func init() {
 	}
 }
 
-const aniSpeed = 0.25
+const aniSpeed = 0.333
 
 type TileValue int
 
@@ -65,7 +65,6 @@ type Tile struct {
 
 	value         TileValue
 	particleFrame int
-	velocity      int
 }
 
 type TileColors struct {
@@ -196,6 +195,7 @@ func (t *Tile) wasDragged() bool {
 	return !t.pos.Eq(t.dragStart)
 }
 
+// rectangle - more of a hitbox than a rectangle
 func (t *Tile) rectangle() image.Rectangle {
 	sz := t.grid.tileSize
 	hgap := sz / 10
@@ -229,7 +229,7 @@ func (t *Tile) update() error {
 			var tm float64 = time.Since(t.lerpStartTime).Seconds() / aniSpeed
 			t.setPos(image.Point{
 				X: int(util.Lerp(float64(t.src.X), float64(t.dst.X), tm)),
-				Y: int(util.EaseInCubic(float64(t.src.Y), float64(t.dst.Y), tm)),
+				Y: int(util.Lerp(float64(t.src.Y), float64(t.dst.Y), tm)),
 			})
 		}
 	}
