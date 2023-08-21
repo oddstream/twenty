@@ -647,10 +647,12 @@ func (g *Grid) Draw(screen *ebiten.Image) {
 		t := &Tile{grid: g, value: g.highestValue}
 		g.imgScore = t.makeTileImg()
 	}
-	op := &ebiten.DrawImageOptions{}
-	// op.GeoM.Scale(0.75, 0.75)
-	op.GeoM.Translate(float64(g.headerRectangle.Max.X-g.tileSize), float64(g.headerRectangle.Min.Y))
-	screen.DrawImage(g.imgScore, op)
+	{
+		op := &ebiten.DrawImageOptions{}
+		// op.GeoM.Scale(0.75, 0.75)
+		op.GeoM.Translate(float64(g.headerRectangle.Max.X-g.tileSize), float64(g.headerRectangle.Min.Y))
+		screen.DrawImage(g.imgScore, op)
+	}
 
 	if g.imgGrid != nil {
 		op := &ebiten.DrawImageOptions{}
