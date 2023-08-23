@@ -1,13 +1,17 @@
+
+[ ] stop the bar running when game over
+[ ] level up sounds at 10, ...
+
 [ ] track and display 'score' tile in top right corner
 
 [ ] twenty: just moving a tile doesn't count as a row-creating move
 	seems to be 6, 7 or 8 mereges
-[ ] 12 second timer
+[X] 12 second timer
 	rounded rect grey bar in header area
 	light grey background, same as grid
 	darker grey shrinks from right to left
 [ ] new footer row does not contain any merges with tiles above
-[ ] don't drag a lerping tile
+[X] don't drag a lerping tile
 [ ] don't add footer row if there is any stroke, dragging, lerping
 [X] game over when tiles in header
 
@@ -45,6 +49,14 @@ function drawParticles(frame, pos) {
 		canvas.drawImage(gfx.particles,x,y,150,150,
 			pos.x-75, pos.y-37, 150, 150);
 	}
+
+1. Twenty Match tiles to get to twenty
+2. Bubbles Bubbles pop when not attached to any tiles
+3. Flip Flop Gravity reverses for each new row
+4. Panic Find all matches before the timer runs out
+5. Drop The tiles arrive from the top instead
+6. Thirty Continue up to thirty
+7. Zen Get to twenty at your own pace
 
 [X] two-way map to link *Cell and *Tile
 [X] insert new row at bottom

@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"image/color"
 	"log"
 	"os"
 
@@ -14,9 +13,9 @@ import (
 var (
 	DebugMode                 bool
 	WindowWidth, WindowHeight int
-	ColorBackground                                       = color.RGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff}
 	TileImgLib                map[TileValue]*ebiten.Image = make(map[TileValue]*ebiten.Image)
 	TileFontFace              font.Face
+	TheAcmeFonts              *AcmeFonts
 )
 
 func init() {
@@ -33,6 +32,8 @@ func main() {
 			fmt.Println(i, a)
 		}
 	}
+
+	TheAcmeFonts = NewAcmeFonts()
 
 	game, err := NewGame()
 	if err != nil {

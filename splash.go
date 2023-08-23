@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed" // go:embed only allowed in Go files that import "embed"
 	"image"
+	"image/color"
 	"log"
 	"math"
 	"os"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/fogleman/gg"
 )
+
+var SplashBackground = color.RGBA{R: 0x40, G: 0x40, B: 0x40, A: 0xff}
 
 var _ GameScene = (*Splash)(nil)
 
@@ -34,7 +37,7 @@ func NewSplash() *Splash {
 	s := &Splash{}
 
 	dc := gg.NewContext(400, 400)
-	dc.SetRGB(0.25, 0.25, 0.25)
+	dc.SetColor(SplashBackground)
 	dc.DrawCircle(200, 200, 120)
 	dc.Fill()
 	dc.Stroke()
@@ -81,7 +84,7 @@ func (s *Splash) Update() error {
 	if s.skew < 90 {
 		s.skew++
 	} else {
-		theSM.Switch(NewGrid(7, 7))
+		theSM.Switch(NewMenu())
 	}
 
 	return nil
@@ -89,7 +92,7 @@ func (s *Splash) Update() error {
 
 // Draw draws the current GameScene to the given screen
 func (s *Splash) Draw(screen *ebiten.Image) {
-	screen.Fill(ColorBackground)
+	screen.Fill(SplashBackground)
 
 	skewRadians := s.skew * math.Pi / 180
 

@@ -221,6 +221,7 @@ func (t *Tile) update() error {
 	if t.isLerping {
 		if t.pos.Eq(t.dst) {
 			t.isLerping = false
+			// t.grid.tileArrived(t)
 			// fmt.Println("tile arrived", t.value)
 		} else {
 			// time will start at nearly zero, and rise to about the value of AniSpeed,
