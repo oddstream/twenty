@@ -40,7 +40,7 @@ var audioContext *audio.Context
 
 var soundMap map[string]*audio.Player
 
-var Volume float64 = 1.0
+var theVolume float64 = 1.0
 
 func decode(name string, wavBytes []byte) {
 	if len(wavBytes) == 0 {
@@ -75,20 +75,19 @@ func init() {
 }
 
 func SetVolume(vol float64) {
-	Volume = vol
+	theVolume = vol
 }
 
 func Play(name string) {
-	if Volume == 0.0 || name == "" {
+	if theVolume == 0.0 || name == "" {
 		return
 	}
-	audioPlayer, ok := soundMap[name]
-	if !ok {
-		log.Panic(name, " not found in sound map")
-	}
-	if !audioPlayer.IsPlaying() {
+	if audioPlayer, ok := soundMap[name]; ok {
 		audioPlayer.Rewind()
-		audioPlayer.SetVolume(Volume)
+		audioPlayer.SetVolume(theVolume)
+		// fmt.Println("Volume", name, audioPlayer.Volume())
 		audioPlayer.Play()
+	} else {
+		log.Panic(name, " not found in sound map")
 	}
 }

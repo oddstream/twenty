@@ -1,8 +1,7 @@
+[ ] undo
+[ ] dragging a tile into header
 
-[ ] stop the bar running when game over
-[ ] level up sounds at 10, ...
-
-[ ] track and display 'score' tile in top right corner
+[ ] how many merges happen because of this one mouse down-drag-release?
 
 [ ] twenty: just moving a tile doesn't count as a row-creating move
 	seems to be 6, 7 or 8 mereges

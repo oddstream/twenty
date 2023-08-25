@@ -20,27 +20,36 @@ func NewMenu() *Menu {
 	s := &Menu{input: i}
 
 	s.widgets = []Widget{
-		NewLabel("Twenty", TheAcmeFonts.large),
-		NewTextButton("Twenty", 200, 50, TheAcmeFonts.normal, func() {
+		NewLabel("Twenty", theAcmeFonts.large),
+		NewTextButton("Twenty", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_TWENTY, 7, 8))
 		}, i),
-		NewTextButton("Bubbles", 200, 50, TheAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_BUBBLES, 7, 8))
+		NewTextButton("Big Twenty", 200, 50, theAcmeFonts.normal, func() {
+			theSM.Switch(NewGrid(MODE_TWENTY, 9, 10))
 		}, i),
-		NewTextButton("Flip Flop", 200, 50, TheAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_PANIC, 7, 8))
+		NewTextButton("Little Twenty", 200, 50, theAcmeFonts.normal, func() {
+			theSM.Switch(NewGrid(MODE_TWENTY, 5, 6))
 		}, i),
-		NewTextButton("Panic", 200, 50, TheAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_PANIC, 7, 8))
-		}, i),
-		NewTextButton("Drop", 200, 50, TheAcmeFonts.normal, func() {
+		// NewTextButton("Bubbles", 200, 50, TheAcmeFonts.normal, func() {
+		// 	theSM.Switch(NewGrid(MODE_BUBBLES, 7, 8))
+		// }, i),
+		// NewTextButton("Flip Flop", 200, 50, TheAcmeFonts.normal, func() {
+		// 	theSM.Switch(NewGrid(MODE_PANIC, 7, 8))
+		// }, i),
+		// NewTextButton("Panic", 200, 50, TheAcmeFonts.normal, func() {
+		// 	theSM.Switch(NewGrid(MODE_PANIC, 7, 8))
+		// }, i),
+		NewTextButton("Drop", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_DROP, 7, 8))
 		}, i),
-		NewTextButton("Thirty", 200, 50, TheAcmeFonts.normal, func() {
+		NewTextButton("Thirty", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_THIRTY, 7, 8))
 		}, i),
-		NewTextButton("Zen", 200, 50, TheAcmeFonts.normal, func() {
+		NewTextButton("Zen", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_ZEN, 7, 8))
+		}, i),
+		NewTextButton("Big Zen", 200, 50, theAcmeFonts.normal, func() {
+			theSM.Switch(NewGrid(MODE_ZEN, 9, 10))
 		}, i),
 	}
 

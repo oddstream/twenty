@@ -13,9 +13,10 @@ import (
 var (
 	DebugMode                 bool
 	WindowWidth, WindowHeight int
-	TileImgLib                map[TileValue]*ebiten.Image = make(map[TileValue]*ebiten.Image)
-	TileFontFace              font.Face
-	TheAcmeFonts              *AcmeFonts
+	theTileImgLib             map[TileValue]*ebiten.Image = make(map[TileValue]*ebiten.Image)
+	theTileLinkImgLib         map[uint32]*ebiten.Image    = make(map[uint32]*ebiten.Image)
+	theTileFontFace           font.Face
+	theAcmeFonts              *AcmeFonts
 )
 
 func init() {
@@ -33,7 +34,7 @@ func main() {
 		}
 	}
 
-	TheAcmeFonts = NewAcmeFonts()
+	theAcmeFonts = NewAcmeFonts()
 
 	game, err := NewGame()
 	if err != nil {

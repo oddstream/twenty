@@ -1,6 +1,7 @@
 {
 	// https://www.programmingfonts.org/
 	"editor.fontFamily": "Roboto Mono",
+	// "editor.fontFamily": "Intel One Mono",
 	// "editor.fontFamily": "CommitMono", // https://commitmono.com/
 	// "editor.fontFamily": "Hack",	// like DejaVu Sans Mono
 	// "editor.fontFamily": "Bitstream Vera Sans Mono",
@@ -29,5 +30,7 @@
 		}
 		]
 	},
-	// "editor.rulers": [80, 100, 120]
+	// use Ctrl+Space to trigger suggestions
+	"editor.quickSuggestions": { "other": "off", "comments": "off", "strings": "off" },
+	// "editor.rulers": [80,100,120]
 }

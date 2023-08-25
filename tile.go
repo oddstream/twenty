@@ -22,11 +22,13 @@ var particlesBytes []byte
 
 var particlesImage *ebiten.Image
 
-const tileSize = 150
-const tilesAcross = 6
-const tilesDown = 3
+const (
+	particleTileSize    = 150
+	particleTilesAcross = 6
+	particleTilesDown   = 3
+)
 
-var particleSubImages = [tilesAcross * tilesDown]*ebiten.Image{}
+var particleSubImages = [particleTilesAcross * particleTilesDown]*ebiten.Image{}
 
 func init() {
 	// Decode an image from the image file's byte slice
@@ -35,15 +37,15 @@ func init() {
 		log.Fatal(err)
 	}
 	particlesImage = ebiten.NewImageFromImage(img)
-	for i := 0; i < tilesAcross*tilesDown; i++ {
-		var sx int = tileSize * (i % tilesAcross)
-		var sy int = tileSize * (i / tilesAcross)
-		r := image.Rect(sx, sy, sx+tileSize, sy+tileSize)
+	for i := 0; i < particleTilesAcross*particleTilesDown; i++ {
+		var sx int = particleTileSize * (i % particleTilesAcross)
+		var sy int = particleTileSize * (i / particleTilesAcross)
+		r := image.Rect(sx, sy, sx+particleTileSize, sy+particleTileSize)
 		particleSubImages[i] = particlesImage.SubImage(r).(*ebiten.Image)
 	}
 }
 
-const aniSpeed = 0.333
+const aniSpeed = 0.25
 
 type TileValue int
 
@@ -64,6 +66,7 @@ type Tile struct {
 	beingDragged bool
 
 	value         TileValue
+	links         uint32
 	particleFrame int
 }
 
@@ -127,7 +130,7 @@ func (t *Tile) makeTileImg() *ebiten.Image {
 	dc.Stroke()
 
 	dc.SetColor(cols.text)
-	dc.SetFontFace(TileFontFace)
+	dc.SetFontFace(theTileFontFace)
 	dc.DrawStringAnchored(fmt.Sprint(t.value), fsz/2, fsz/2, 0.5, 0.3)
 	dc.Stroke()
 	return ebiten.NewImageFromImage(dc.Image())
@@ -238,13 +241,17 @@ func (t *Tile) update() error {
 }
 
 func (t *Tile) draw(screen *ebiten.Image) {
-	img, ok := TileImgLib[t.value]
+
+	t.drawLinks(screen)
+
+	img, ok := theTileImgLib[t.value]
 	if !ok {
 		img = t.makeTileImg()
 		if img == nil {
+			fmt.Println("Cannot make image for tile", t.value)
 			return
 		}
-		TileImgLib[t.value] = img
+		theTileImgLib[t.value] = img
 	}
 
 	op := &ebiten.DrawImageOptions{}
@@ -254,9 +261,9 @@ func (t *Tile) draw(screen *ebiten.Image) {
 	i := t.particleFrame
 	if i >= 0 && i <= 17 {
 		op = &ebiten.DrawImageOptions{}
-		sz := float64(t.grid.tileSize)
-		op.GeoM.Scale(sz/tileSize, sz/tileSize)
-		op.GeoM.Translate(float64(t.pos.X), float64(t.pos.Y))
+		sz := float64(t.grid.tileSize * 2)
+		op.GeoM.Scale(sz/particleTileSize, sz/particleTileSize)
+		op.GeoM.Translate(float64(t.pos.X-t.grid.tileSize/2), float64(t.pos.Y))
 		screen.DrawImage(particleSubImages[i], op)
 		t.particleFrame += 1
 		if t.particleFrame > 17 {
