@@ -56,7 +56,7 @@ type Grid struct {
 	footerRectangle                 image.Rectangle
 	theBottomLine                   int
 	tiles                           []*Tile
-	tilebag                         []TileValue
+	tilebag                         []int
 	stroke                          *stroke.Stroke
 	ticks, zenmoves, level          int
 	gameOver, gamePaused            bool
@@ -64,15 +64,16 @@ type Grid struct {
 	imgTimebarBackground            *ebiten.Image
 	imgTimebarForeground            *ebiten.Image
 	secondsRemaining                float64
-	highestValue                    TileValue
+	highestValue                    int
 	imgScore                        *ebiten.Image
+	undoStack                       []undoState
 }
 
 func NewGrid(mode GameMode, across, down int) *Grid {
 	g := &Grid{mode: mode, tilesAcross: across, tilesDown: down, level: 0}
 
 	for i := 0; i < g.tilesAcross*g.tilesDown; i++ {
-		g.tilebag = append(g.tilebag, TileValue(rand.Intn(3)+1))
+		g.tilebag = append(g.tilebag, rand.Intn(3)+1)
 	}
 	g.tilebag = append(g.tilebag, 4)
 	g.tilebag = append(g.tilebag, 4)
@@ -86,8 +87,8 @@ func NewGrid(mode GameMode, across, down int) *Grid {
 	return g
 }
 
-func (g *Grid) findHighestValue() TileValue {
-	var highest TileValue
+func (g *Grid) findHighestValue() int {
+	var highest int
 	for _, t := range g.tiles {
 		if t.value > highest {
 			highest = t.value
@@ -96,7 +97,7 @@ func (g *Grid) findHighestValue() TileValue {
 	return highest
 }
 
-func (g *Grid) addTile(pos image.Point, v TileValue) {
+func (g *Grid) addTile(pos image.Point, v int) {
 	t := NewTile(g, pos, v)
 	g.tiles = append(g.tiles, t)
 }
@@ -107,18 +108,18 @@ func (g *Grid) shuffleTilebag() {
 	})
 }
 
-func (g *Grid) peekTilebag() TileValue {
+func (g *Grid) peekTilebag() int {
 	v := g.tilebag[len(g.tilebag)-1]
 	return v
 }
 
-func (g *Grid) popTilebag() TileValue {
+func (g *Grid) popTilebag() int {
 	v := g.tilebag[len(g.tilebag)-1]
 	g.tilebag = g.tilebag[:len(g.tilebag)-1]
 	return v
 }
 
-func (g *Grid) getNextValue(x int) TileValue {
+func (g *Grid) getNextValue(x int) int {
 	// original game does not add tiles with same value as tile above
 	// not sure if this is by design, or to avoid moving-tile weirdness
 	if g.mode != MODE_DROP {
@@ -269,6 +270,7 @@ func (g *Grid) strokeStart(v stroke.StrokeEvent) {
 		} else {
 			g.stroke = v.Stroke
 			g.stroke.SetDraggedObject(t)
+			g.undoPush()
 			t.startDrag()
 		}
 		// fmt.Println("drag start", t.value)
@@ -435,7 +437,7 @@ func (g *Grid) mergeAllColumns() {
 			seen[key].value++
 			if seen[key].value > g.highestValue {
 				g.highestValue = seen[key].value
-				var valueTotal TileValue
+				var valueTotal int
 				for _, t2 := range g.tiles {
 					valueTotal += t2.value
 				}
@@ -625,6 +627,14 @@ func (g *Grid) Update() error {
 			g.gameOver = true
 		}
 	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyU) {
+		if state, err := g.undoPop(); err != nil {
+			fmt.Println(err)
+		} else {
+			g.undoDeploy(state)
+			g.secondsRemaining = refreshSeconds
+		}
+	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
 		theSM.Switch(NewMenu())
 	}
@@ -684,8 +694,10 @@ func (g *Grid) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	if g.gamePaused {
+	if theTileFontFace != nil && g.gamePaused {
 		str := "PAUSED"
+		// str = fmt.Sprintf("UNDO %d", len(g.undoStack))
+		// str = fmt.Sprint(len(g.undoStack))
 		bound, _ := font.BoundString(theTileFontFace, str)
 		text.Draw(screen, str, theTileFontFace,
 			g.headerRectangle.Min.X,

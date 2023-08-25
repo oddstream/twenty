@@ -1,9 +1,10 @@
 {
 	// https://www.programmingfonts.org/
 	"editor.fontFamily": "Roboto Mono",
-	// "editor.fontFamily": "Intel One Mono",
 	// "editor.fontFamily": "CommitMono", // https://commitmono.com/
 	// "editor.fontFamily": "Hack",	// like DejaVu Sans Mono
+	// "editor.fontFamily": "Source Code Pro",
+	// "editor.fontFamily": "Intel One Mono",
 	// "editor.fontFamily": "Bitstream Vera Sans Mono",
 	// "editor.fontFamily": "Droid Sans Mono",
 	// "editor.fontFamily": "DejaVu Sans Mono",

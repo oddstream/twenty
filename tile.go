@@ -47,8 +47,6 @@ func init() {
 
 const aniSpeed = 0.25
 
-type TileValue int
-
 type Tile struct {
 	grid *Grid
 	// pos of card on grid
@@ -65,7 +63,7 @@ type Tile struct {
 	dragStart    image.Point
 	beingDragged bool
 
-	value         TileValue
+	value         int
 	links         uint32
 	particleFrame int
 }
@@ -74,7 +72,7 @@ type TileColors struct {
 	face, text, footer color.RGBA
 }
 
-var tileColorMap = map[TileValue]TileColors{
+var tileColorMap = map[int]TileColors{
 	1:  {face: color.RGBA{0xff, 0xff, 0x99, 0xff}, text: color.RGBA{0x8c, 0x8c, 0x00, 0xff}, footer: color.RGBA{0xc6, 0xc6, 0x00, 0xff}},
 	2:  {face: color.RGBA{0xff, 0x24, 0x24, 0xff}, text: color.RGBA{0xff, 0xff, 0xff, 0xff}, footer: color.RGBA{0xd6, 0x00, 0x00, 0xff}},
 	3:  {face: color.RGBA{0x00, 0xf2, 0xae, 0xff}, text: color.RGBA{0xff, 0xff, 0xff, 0xff}, footer: color.RGBA{0x00, 0xcb, 0x92, 0xff}},
@@ -97,7 +95,7 @@ var tileColorMap = map[TileValue]TileColors{
 	20: {face: color.RGBA{0xff, 0x83, 0x43, 0xff}, text: color.RGBA{0xff, 0xff, 0xff, 0xff}, footer: color.RGBA{0xd4, 0x48, 0x00, 0xff}},
 }
 
-func NewTile(grid *Grid, pos image.Point, value TileValue) *Tile {
+func NewTile(grid *Grid, pos image.Point, value int) *Tile {
 	t := &Tile{grid: grid, pos: pos, value: value, particleFrame: -1}
 	t.calcRowColumn()
 	return t

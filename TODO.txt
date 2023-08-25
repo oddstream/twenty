@@ -1,4 +1,3 @@
-[ ] undo
 [ ] dragging a tile into header
 
 [ ] how many merges happen because of this one mouse down-drag-release?

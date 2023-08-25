@@ -48,9 +48,6 @@ func NewMenu() *Menu {
 		NewTextButton("Zen", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_ZEN, 7, 8))
 		}, i),
-		NewTextButton("Big Zen", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_ZEN, 9, 10))
-		}, i),
 	}
 
 	return s

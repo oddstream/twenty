@@ -13,8 +13,8 @@ import (
 var (
 	DebugMode                 bool
 	WindowWidth, WindowHeight int
-	theTileImgLib             map[TileValue]*ebiten.Image = make(map[TileValue]*ebiten.Image)
-	theTileLinkImgLib         map[uint32]*ebiten.Image    = make(map[uint32]*ebiten.Image)
+	theTileImgLib             map[int]*ebiten.Image    = make(map[int]*ebiten.Image)
+	theTileLinkImgLib         map[uint32]*ebiten.Image = make(map[uint32]*ebiten.Image)
 	theTileFontFace           font.Face
 	theAcmeFonts              *AcmeFonts
 )
