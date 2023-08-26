@@ -1,9 +1,17 @@
+[ ] finish when there are static tiles outside of the grid rectangle?
+	maybe no need for header and footer
+
+[X] "you get a new row when you run out of moves"
+	"or when the timer runs out"
+	(or every 6 (columns-1) moves in Zen mode)
+
 [ ] dragging a tile into header
+	just before lerping all the tiles up
 
 [ ] how many merges happen because of this one mouse down-drag-release?
 
 [ ] twenty: just moving a tile doesn't count as a row-creating move
-	seems to be 6, 7 or 8 mereges
+	seems to be 6, 7 or 8 merges
 [X] 12 second timer
 	rounded rect grey bar in header area
 	light grey background, same as grid

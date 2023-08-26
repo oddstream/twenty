@@ -1,7 +1,7 @@
 {
 	// https://www.programmingfonts.org/
-	"editor.fontFamily": "Roboto Mono",
-	// "editor.fontFamily": "CommitMono", // https://commitmono.com/
+	// "editor.fontFamily": "Roboto Mono",
+	"editor.fontFamily": "CommitMono", // https://commitmono.com/
 	// "editor.fontFamily": "Hack",	// like DejaVu Sans Mono
 	// "editor.fontFamily": "Source Code Pro",
 	// "editor.fontFamily": "Intel One Mono",
@@ -20,6 +20,8 @@
 	// "editor.fontFamily": "Ubuntu Mono",	// too small
 	// "editor.fontFamily": "Inconsolata",	// too small
 	// "editor.fontFamily": "Go Mono",	// too serifed
+	// "editor.fontFamily": "Noto Mono",
+	// "editor.fontFamily": "Victor Mono",
 	// "editor.fontFamily": "Cascadia Code",
 	"editor.tokenColorCustomizations": {
 		"textMateRules": [

@@ -2,6 +2,7 @@ package main
 
 import (
 	"image/color"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -22,13 +23,13 @@ func NewMenu() *Menu {
 	s.widgets = []Widget{
 		NewLabel("Twenty", theAcmeFonts.large),
 		NewTextButton("Twenty", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_TWENTY, 7, 8))
+			theSM.Switch(NewGrid(MODE_TWENTY, 7, 8, 12.0))
 		}, i),
 		NewTextButton("Big Twenty", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_TWENTY, 9, 10))
+			theSM.Switch(NewGrid(MODE_TWENTY, 9, 10, 12.0))
 		}, i),
 		NewTextButton("Little Twenty", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_TWENTY, 5, 6))
+			theSM.Switch(NewGrid(MODE_TWENTY, 5, 6, 10.0))
 		}, i),
 		// NewTextButton("Bubbles", 200, 50, TheAcmeFonts.normal, func() {
 		// 	theSM.Switch(NewGrid(MODE_BUBBLES, 7, 8))
@@ -40,13 +41,13 @@ func NewMenu() *Menu {
 		// 	theSM.Switch(NewGrid(MODE_PANIC, 7, 8))
 		// }, i),
 		NewTextButton("Drop", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_DROP, 7, 8))
+			theSM.Switch(NewGrid(MODE_DROP, 7, 8, 12.0))
 		}, i),
 		NewTextButton("Thirty", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_THIRTY, 7, 8))
+			theSM.Switch(NewGrid(MODE_THIRTY, 7, 8, 12.0))
 		}, i),
 		NewTextButton("Zen", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_ZEN, 7, 8))
+			theSM.Switch(NewGrid(MODE_ZEN, 7, 8, math.MaxFloat64))
 		}, i),
 	}
 

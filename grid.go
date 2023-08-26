@@ -12,7 +12,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font"
 	"oddstream.games/grot/sound"
 	"oddstream.games/grot/stroke"
 )
@@ -41,8 +40,6 @@ var modeName = map[GameMode]string{
 
 var _ GameScene = (*Grid)(nil)
 
-const refreshSeconds float64 = 12.0
-
 // Grid is a container object, for a 2-dimensional array of Cells
 // and a slice of Tiles
 type Grid struct {
@@ -60,17 +57,18 @@ type Grid struct {
 	stroke                          *stroke.Stroke
 	ticks, zenmoves, level          int
 	gameOver, gamePaused            bool
-	imgHeaderFooter, imgGrid        *ebiten.Image // debug
+	imgGrid                         *ebiten.Image
 	imgTimebarBackground            *ebiten.Image
 	imgTimebarForeground            *ebiten.Image
 	secondsRemaining                float64
 	highestValue                    int
 	imgScore                        *ebiten.Image
 	undoStack                       []undoState
+	refreshSeconds                  float64
 }
 
-func NewGrid(mode GameMode, across, down int) *Grid {
-	g := &Grid{mode: mode, tilesAcross: across, tilesDown: down, level: 0}
+func NewGrid(mode GameMode, across, down int, refreshSeconds float64) *Grid {
+	g := &Grid{mode: mode, tilesAcross: across, tilesDown: down, refreshSeconds: refreshSeconds, level: 0}
 
 	for i := 0; i < g.tilesAcross*g.tilesDown; i++ {
 		g.tilebag = append(g.tilebag, rand.Intn(3)+1)
@@ -95,6 +93,20 @@ func (g *Grid) findHighestValue() int {
 		}
 	}
 	return highest
+}
+
+func (g *Grid) duplicateTiles() bool {
+	for i := range g.tiles {
+		v := g.tiles[i].value
+		for j := i + 1; j < len(g.tiles); j++ {
+			if g.tiles[j].value == v {
+				return true
+			}
+		}
+	}
+	sound.Play("Tick")
+	fmt.Println("No duplicates")
+	return false
 }
 
 func (g *Grid) addTile(pos image.Point, v int) {
@@ -140,7 +152,7 @@ func (g *Grid) getNextValue(x int) int {
 }
 
 func (g *Grid) addNewRow() bool {
-	if len(g.tilebag) < 7 {
+	if len(g.tilebag) < g.tilesAcross {
 		fmt.Println("Not enough tiles in tilebag")
 		return false
 	}
@@ -285,14 +297,16 @@ func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 		tdragged := obj // to make this more readable
 		oldPos := tdragged.pos
 
-		// dx, dy := v.Stroke.PositionDiff()
+		dx, dy := v.Stroke.PositionDiff()
+
 		// var tdraggers []*Tile
 		// tdraggers = g.appendLinkedTiles(tdraggers, tdragged)
 		// for _, t := range tdraggers {
 		// 	t.dragBy(dx, dy)
 		// }
 
-		tdragged.dragBy(v.Stroke.PositionDiff())
+		// tdragged.dragBy(v.Stroke.PositionDiff())
+		tdragged.dragBy(dx, dy)
 
 		// disallow move if tile goes off grid canvas
 		if !g.tileCompletelyInGrid(tdragged) {
@@ -307,12 +321,13 @@ func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 		// disallow move if tile moves over another tile with different value
 		tdst, _ := g.largestTileIntersection(tdragged)
 		if tdst == nil {
-			// move to an empty area
+			// move to an empty area, that's ok
 		} else if tdst.value == tdragged.value {
-			// move to another tile with same value, that's fine
+			// move to another tile with same value, that's ok
 		} else {
 			// overlapping with a tile with a different value, verboten!
 			tdragged.setPos(oldPos)
+
 			// for _, t := range tdraggers {
 			// 	t.dragBy(-dx, -dy)
 			// }
@@ -336,13 +351,6 @@ func (g *Grid) strokeStop(v stroke.StrokeEvent) {
 		// so we don't do that here
 		if g.mode == MODE_ZEN {
 			g.zenmoves++
-			if g.zenmoves%(g.tilesAcross-1) == 0 {
-				if g.addNewRow() {
-					g.lerpUp()
-				} else {
-					g.gameOver = true
-				}
-			}
 		}
 	}
 }
@@ -494,6 +502,18 @@ func (g *Grid) rectangleContainsStaticTiles(rect image.Rectangle) bool {
 	return false
 }
 
+func (g *Grid) staticTilesOutsideGrid() bool {
+	for _, t := range g.tiles {
+		if t.isLerping || t.beingDragged {
+			continue
+		}
+		if !g.gridRectangle.Overlaps(t.rectangle()) {
+			return true
+		}
+	}
+	return false
+}
+
 // Layout implements ebiten.Game's Layout
 func (g *Grid) Layout(outsideWidth, outsideHeight int) (int, int) {
 
@@ -546,14 +566,6 @@ func (g *Grid) Layout(outsideWidth, outsideHeight int) (int, int) {
 		}
 	}
 
-	if DebugMode {
-		dc := gg.NewContext(g.tilesAcross*g.tileSize, g.tileSize)
-		dc.SetColor(color.RGBA{0xe0, 0x80, 0x80, 0xff})
-		dc.DrawRoundedRectangle(0, 0, float64(g.tilesAcross*g.tileSize), float64(g.tileSize), float64(g.tileSize)/10)
-		dc.Fill()
-		dc.Stroke()
-		g.imgHeaderFooter = ebiten.NewImageFromImage(dc.Image())
-	}
 	{
 		dc := gg.NewContext(g.tilesAcross*g.tileSize, g.tilesDown*g.tileSize)
 		dc.SetColor(color.RGBA{0xe0, 0xe0, 0xe0, 0xff})
@@ -594,7 +606,7 @@ func (g *Grid) Layout(outsideWidth, outsideHeight int) (int, int) {
 		// g.linkTwoTiles(g.findTile(1, 6), g.findTile(2, 6))
 		// g.linkTwoTiles(g.findTile(3, 7), g.findTile(3, 6))
 		g.highestValue = g.findHighestValue()
-		g.secondsRemaining = refreshSeconds
+		g.secondsRemaining = g.refreshSeconds
 	}
 
 	g.oldWindowWidth = outsideWidth
@@ -632,7 +644,7 @@ func (g *Grid) Update() error {
 			fmt.Println(err)
 		} else {
 			g.undoDeploy(state)
-			g.secondsRemaining = refreshSeconds
+			g.secondsRemaining = g.refreshSeconds
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
@@ -647,28 +659,38 @@ func (g *Grid) Update() error {
 	}
 
 	if !(g.gameOver || g.gamePaused) {
-		g.ticks = g.ticks + 1
-		if !g.rectangleContainsStaticTiles(g.footerRectangle) {
-			if g.ticks%10 == 0 {
-				g.gravityAllColumns()
-				g.mergeAllColumns()
+		g.ticks += 1
+		if g.ticks%10 == 0 {
+			g.gravityAllColumns()
+			g.mergeAllColumns()
+			if g.staticTilesOutsideGrid() {
+				g.gameOver = true
+				sound.Play("GameOver")
 			}
 		}
 	}
 
-	if !g.gameOver && g.rectangleContainsStaticTiles(g.headerRectangle) {
-		g.gameOver = true
-		sound.Play("GameOver")
-	}
-
-	if !(g.gameOver || g.gamePaused || g.mode == MODE_ZEN) {
-		g.secondsRemaining -= ebiten.ActualTPS() / 60.0 / 60.0
-		if g.secondsRemaining <= 0.0 {
-			if g.addNewRow() {
-				g.lerpUp()
-				g.secondsRemaining = refreshSeconds
-			} else {
-				g.gameOver = true
+	if !(g.gameOver || g.gamePaused) {
+		if g.mode == MODE_ZEN {
+			if g.zenmoves == g.tilesAcross-1 || !g.duplicateTiles() {
+				if g.addNewRow() {
+					g.lerpUp()
+					g.zenmoves = 0
+				} else {
+					g.gameOver = true
+					sound.Play("GameOver")
+				}
+			}
+		} else {
+			g.secondsRemaining -= ebiten.ActualTPS() / 60.0 / 60.0
+			if g.secondsRemaining <= 0.0 || !g.duplicateTiles() {
+				if g.addNewRow() {
+					g.lerpUp()
+					g.secondsRemaining = g.refreshSeconds
+				} else {
+					g.gameOver = true
+					sound.Play("GameOver")
+				}
 			}
 		}
 	}
@@ -679,30 +701,33 @@ func (g *Grid) Update() error {
 // Draw draws the current GameScene to the given screen
 func (g *Grid) Draw(screen *ebiten.Image) {
 
-	screen.Fill(color.RGBA{0xff, 0xff, 0xff, 0xff})
+	screen.Fill(color.White)
 
-	if g.imgHeaderFooter != nil {
-		if g.rectangleContainsStaticTiles(g.headerRectangle) {
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(g.headerRectangle.Min.X), float64(g.headerRectangle.Min.Y))
-			screen.DrawImage(g.imgHeaderFooter, op)
-		}
-		if g.rectangleContainsStaticTiles(g.footerRectangle) {
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(g.footerRectangle.Min.X), float64(g.footerRectangle.Min.Y))
-			screen.DrawImage(g.imgHeaderFooter, op)
-		}
-	}
+	// ebitenutil.DrawRect(screen,
+	// 	float64(g.headerRectangle.Min.X),
+	// 	float64(g.headerRectangle.Min.Y),
+	// 	float64(g.headerRectangle.Dx()),
+	// 	float64(g.headerRectangle.Dy()),
+	// 	color.Black)
 
-	if theTileFontFace != nil && g.gamePaused {
-		str := "PAUSED"
-		// str = fmt.Sprintf("UNDO %d", len(g.undoStack))
-		// str = fmt.Sprint(len(g.undoStack))
-		bound, _ := font.BoundString(theTileFontFace, str)
-		text.Draw(screen, str, theTileFontFace,
-			g.headerRectangle.Min.X,
-			g.headerRectangle.Min.Y+int(bound.Max.Y),
-			color.Black)
+	if theTileFontFace != nil {
+		var str string
+		if g.gamePaused {
+			str = "PAUSED"
+		} else if g.gameOver {
+			str = "GAME OVER"
+			// } else {
+			// 	str = fmt.Sprintf("%d%%", len(g.tiles)*100/(g.tilesAcross*g.tilesDown))
+		}
+		if len(str) > 0 {
+			// str = fmt.Sprintf("UNDO %d", len(g.undoStack))
+			// str = fmt.Sprint(len(g.undoStack))
+			bound := text.BoundString(theTileFontFace, str)
+			text.Draw(screen, str, theTileFontFace,
+				g.headerRectangle.Min.X,
+				g.headerRectangle.Min.Y+bound.Dy(),
+				color.Black)
+		}
 	}
 
 	if !g.gamePaused && g.mode != MODE_ZEN {
@@ -712,7 +737,7 @@ func (g *Grid) Draw(screen *ebiten.Image) {
 			screen.DrawImage(g.imgTimebarBackground, op)
 		}
 		if !g.gameOver && g.imgTimebarForeground != nil {
-			w := float64(g.headerRectangle.Dx()) * (g.secondsRemaining / refreshSeconds)
+			w := float64(g.headerRectangle.Dx()) * (g.secondsRemaining / g.refreshSeconds)
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Scale(w/float64(g.headerRectangle.Dx()), 1.0)
 			op.GeoM.Translate(float64(g.headerRectangle.Min.X), float64(g.headerRectangle.Max.Y-g.tileSize/4))

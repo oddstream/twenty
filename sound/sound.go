@@ -36,11 +36,14 @@ var levelup2bytes []byte
 //go:embed assets/levelup_20_3.wav
 var levelup3bytes []byte
 
+//go:embed assets/tick_001.wav
+var tickBytes []byte
+
 var audioContext *audio.Context
 
 var soundMap map[string]*audio.Player
 
-var theVolume float64 = 1.0
+var theVolume float64 = 0.5
 
 func decode(name string, wavBytes []byte) {
 	if len(wavBytes) == 0 {
@@ -72,6 +75,7 @@ func init() {
 	decode("LevelUp1", levelup1bytes)
 	decode("LevelUp2", levelup2bytes)
 	decode("LevelUp3", levelup3bytes)
+	decode("Tick", tickBytes)
 }
 
 func SetVolume(vol float64) {
