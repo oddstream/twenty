@@ -1,4 +1,4 @@
-module oddstream.games/grot
+module oddstream.games/twenty
 
 go 1.21.0
 

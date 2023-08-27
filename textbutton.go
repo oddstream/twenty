@@ -8,7 +8,7 @@ import (
 	"github.com/fogleman/gg"
 	"github.com/hajimehoshi/ebiten/v2"
 	"golang.org/x/image/font"
-	"oddstream.games/grot/util"
+	"oddstream.games/twenty/util"
 )
 
 // TextButton is an object that represents a button, Observer in Observer pattern

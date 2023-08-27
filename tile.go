@@ -14,7 +14,7 @@ import (
 	"github.com/fogleman/gg"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"oddstream.games/grot/util"
+	"oddstream.games/twenty/util"
 )
 
 //go:embed assets/particles.png

@@ -5,7 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	util "oddstream.games/grot/util"
+	util "oddstream.games/twenty/util"
 )
 
 type (

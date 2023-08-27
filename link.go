@@ -6,7 +6,7 @@ import (
 
 	"github.com/fogleman/gg"
 	"github.com/hajimehoshi/ebiten/v2"
-	"oddstream.games/grot/util"
+	"oddstream.games/twenty/util"
 )
 
 const (

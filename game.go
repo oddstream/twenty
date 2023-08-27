@@ -2,21 +2,21 @@ package main
 
 import "github.com/hajimehoshi/ebiten/v2"
 
-type GrotGame struct {
+type TwentyGame struct {
 }
 
 var theSM *SceneManager = &SceneManager{}
 
 // NewGame generates a new Game object.
-func NewGame() (*GrotGame, error) {
-	g := &GrotGame{}
+func NewGame() (*TwentyGame, error) {
+	g := &TwentyGame{}
 	// theSM.Switch(NewSplash())
 	theSM.Switch(NewSplash())
 	return g, nil
 }
 
 // Layout implements ebiten.Game's Layout.
-func (g *GrotGame) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+func (g *TwentyGame) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	WindowWidth = outsideWidth
 	WindowHeight = outsideHeight
 	scene := theSM.Get()
@@ -24,7 +24,7 @@ func (g *GrotGame) Layout(outsideWidth, outsideHeight int) (screenWidth, screenH
 }
 
 // Update updates the current game scene.
-func (g *GrotGame) Update() error {
+func (g *TwentyGame) Update() error {
 	scene := theSM.Get()
 	if err := scene.Update(); err != nil {
 		return err
@@ -33,7 +33,7 @@ func (g *GrotGame) Update() error {
 }
 
 // Draw draws the current game to the given screen.
-func (g *GrotGame) Draw(screen *ebiten.Image) {
+func (g *TwentyGame) Draw(screen *ebiten.Image) {
 	scene := theSM.Get()
 	scene.Draw(screen)
 }

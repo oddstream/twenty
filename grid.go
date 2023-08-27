@@ -12,8 +12,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
-	"oddstream.games/grot/sound"
-	"oddstream.games/grot/stroke"
+	"oddstream.games/twenty/sound"
+	"oddstream.games/twenty/stroke"
 )
 
 type GameMode int
@@ -73,12 +73,10 @@ func NewGrid(mode GameMode, across, down int, refreshSeconds float64) *Grid {
 	for i := 0; i < g.tilesAcross*g.tilesDown; i++ {
 		g.tilebag = append(g.tilebag, rand.Intn(3)+1)
 	}
-	g.tilebag = append(g.tilebag, 4)
-	g.tilebag = append(g.tilebag, 4)
-	g.tilebag = append(g.tilebag, 5)
+	for i := 0; i < g.tilesAcross; i++ {
+		g.tilebag = append(g.tilebag, rand.Intn(5)+1)
+	}
 	g.shuffleTilebag()
-
-	// g.cq = NewCmdQueue(100)
 
 	// can't add first two rows of tile yet, as Layout() has not been called
 
@@ -105,7 +103,7 @@ func (g *Grid) duplicateTiles() bool {
 		}
 	}
 	sound.Play("Tick")
-	fmt.Println("No duplicates")
+	// fmt.Println("No duplicates")
 	return false
 }
 
@@ -275,9 +273,8 @@ func (g *Grid) largestTileIntersection(t1 *Tile) (*Tile, int) {
 }
 
 func (g *Grid) strokeStart(v stroke.StrokeEvent) {
-	// g.stroke = v.Stroke
 	if t := g.findTileAt(v.X, v.Y); t != nil {
-		if t.links != 0 || t.isLerping {
+		if t.isLerping {
 			v.Stroke.Cancel()
 		} else {
 			g.stroke = v.Stroke
@@ -626,12 +623,6 @@ func (g *Grid) Update() error {
 			g.stroke = nil
 		}
 	}
-	// if inpututil.IsKeyJustPressed(ebiten.KeyG) {
-	// 	g.gravityAllColumns()
-	// }
-	// if inpututil.IsKeyJustPressed(ebiten.KeyM) {
-	// 	g.mergeAllColumns()
-	// }
 	if inpututil.IsKeyJustPressed(ebiten.KeyN) {
 		if g.addNewRow() {
 			g.lerpUp()
