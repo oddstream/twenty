@@ -157,7 +157,7 @@ func (t *Tile) lerpTo(dst image.Point) {
 		return // repeat request to lerp to dst
 	}
 	if t.isLerping {
-		fmt.Println("extended lerp", t.value)
+		// fmt.Println("extended lerp", t.value)
 		// leave src
 		t.dst = dst
 		// leave lerpStartTime

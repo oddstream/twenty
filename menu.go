@@ -43,9 +43,9 @@ func NewMenu() *Menu {
 		NewTextButton("Drop", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_DROP, 7, 8, 12.0))
 		}, i),
-		NewTextButton("Thirty", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_THIRTY, 7, 8, 12.0))
-		}, i),
+		// NewTextButton("Thirty", 200, 50, theAcmeFonts.normal, func() {
+		// 	theSM.Switch(NewGrid(MODE_THIRTY, 7, 8, 12.0))
+		// }, i),
 		NewTextButton("Zen", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_ZEN, 7, 8, math.MaxFloat64))
 		}, i),
