@@ -25,11 +25,14 @@ func NewMenu() *Menu {
 		NewTextButton("Twenty", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_TWENTY, 7, 8, 12.0))
 		}, i),
+		NewTextButton("Little Twenty", 200, 50, theAcmeFonts.normal, func() {
+			theSM.Switch(NewGrid(MODE_TWENTY, 5, 6, 10.0))
+		}, i),
 		NewTextButton("Big Twenty", 200, 50, theAcmeFonts.normal, func() {
 			theSM.Switch(NewGrid(MODE_TWENTY, 9, 10, 12.0))
 		}, i),
-		NewTextButton("Little Twenty", 200, 50, theAcmeFonts.normal, func() {
-			theSM.Switch(NewGrid(MODE_TWENTY, 5, 6, 10.0))
+		NewTextButton("Huge Twenty", 200, 50, theAcmeFonts.normal, func() {
+			theSM.Switch(NewGrid(MODE_TWENTY, 11, 12, 12.0))
 		}, i),
 		// NewTextButton("Bubbles", 200, 50, TheAcmeFonts.normal, func() {
 		// 	theSM.Switch(NewGrid(MODE_BUBBLES, 7, 8))

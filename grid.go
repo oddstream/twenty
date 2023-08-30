@@ -669,24 +669,22 @@ func (g *Grid) Update() error {
 
 	if !(g.gameOver || g.gamePaused) {
 		g.ticks += 1
-		if g.ticks%10 == 0 {
+		if g.ticks%2 == 0 {
 			g.gravityAllColumns()
-		}
-		if g.ticks%20 == 0 {
 			g.mergeAllColumns()
 			if g.staticTilesOutsideGrid() {
 				g.gameOver = true
 				sound.Play("GameOver")
 			}
-		}
-		if g.mode == MODE_ZEN {
-			if g.zenmoves == g.tilesAcross-1 || !g.duplicateTiles() {
-				if g.addNewRow() {
-					g.lerpUp()
-					g.zenmoves = 0
-				} else {
-					g.gameOver = true
-					sound.Play("GameOver")
+			if g.mode == MODE_ZEN {
+				if g.zenmoves == g.tilesAcross-1 || !g.duplicateTiles() {
+					if g.addNewRow() {
+						g.lerpUp()
+						g.zenmoves = 0
+					} else {
+						g.gameOver = true
+						sound.Play("GameOver")
+					}
 				}
 			}
 		} else {
