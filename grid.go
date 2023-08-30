@@ -430,23 +430,43 @@ func (g *Grid) gravityAllColumns() {
 }
 
 func (g *Grid) mergeAllColumns() {
-	seen := make(map[int]*Tile)
+	for _, t := range g.tiles {
+		// creates a short delay before tiles merge, which seems pleasing
+		if t.isLerping {
+			return
+		}
+		// 	// if t.beingDragged {
+		// 	// 	// fmt.Println("tiles are being dragged - no merge for now")
+		// 	// 	return
+		// 	// }
+	}
+	seen := make(map[uint32]*Tile)
 	var merges int
 	for _, t := range g.tiles {
-		key := t.row<<8 | t.column
-		if seen[key] != nil {
+		oldRow, oldColumn := t.row, t.column
+		t.calcRowColumn() // hmmm...
+		if oldRow != t.row || oldColumn != t.column {
+			fmt.Println("row/column has updated mysteriously")
+		}
+		if t.row < 0 || t.column < 0 {
+			fmt.Println("merge problem - tile out of bounds", t.column, t.row)
+			sound.Play("GameOver")
+			continue
+		}
+		key := uint32(t.row)<<8 | uint32(t.column)
+		if seen[key] == nil /*|| t.isLerping || seen[key].isLerping || t.beingDragged || seen[key].beingDragged */ {
+			seen[key] = t
+		} else {
 			if seen[key].value != t.value {
-				fmt.Println("merge logic problem - is game over?", g.gameOver)
+				fmt.Println("merge value problem")
+				// we can't merge these two tiles, because their values are not the same
+				sound.Play("GameOver")
 			}
 			g.tilebag = append(g.tilebag, t.value)
 			seen[key].value++
 			if seen[key].value > g.highestValue {
 				g.highestValue = seen[key].value
-				var valueTotal int
-				for _, t2 := range g.tiles {
-					valueTotal += t2.value
-				}
-				fmt.Println("SCORE: ", g.highestValue, "VALUE TOTAL:", valueTotal)
+				// fmt.Println("SCORE: ", g.highestValue)
 				if g.highestValue == 10 || g.highestValue == 15 || g.highestValue == 20 {
 					g.level += 1
 					sound.Play(fmt.Sprintf("LevelUp%d", g.level)) // 1, 2 or 3
@@ -455,12 +475,10 @@ func (g *Grid) mergeAllColumns() {
 			}
 			seen[key].startParticles()
 			// TODO think about why we need two calls to breakLinks
-			g.breakLinks(seen[key])
-			g.breakLinks(t)
+			// g.breakLinks(seen[key])
+			// g.breakLinks(t)
 			sound.Play(fmt.Sprintf("Combo%d", g.level+1)) // 1, 2, 3 or 4
 			merges += 1
-		} else {
-			seen[key] = t
 		}
 	}
 	if merges > 0 {
@@ -653,15 +671,14 @@ func (g *Grid) Update() error {
 		g.ticks += 1
 		if g.ticks%10 == 0 {
 			g.gravityAllColumns()
+		}
+		if g.ticks%20 == 0 {
 			g.mergeAllColumns()
 			if g.staticTilesOutsideGrid() {
 				g.gameOver = true
 				sound.Play("GameOver")
 			}
 		}
-	}
-
-	if !(g.gameOver || g.gamePaused) {
 		if g.mode == MODE_ZEN {
 			if g.zenmoves == g.tilesAcross-1 || !g.duplicateTiles() {
 				if g.addNewRow() {
