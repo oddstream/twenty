@@ -270,8 +270,6 @@ func (t *Tile) update() error {
 				if tb.value != t.value {
 					t.pos.Y = tb.pos.Y - t.grid.tileSize
 					t.velocity = 0
-				} else {
-					t.velocity = 0
 				}
 			}
 		}

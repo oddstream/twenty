@@ -28,15 +28,15 @@ const (
 	MODE_ZEN
 )
 
-var modeName = map[GameMode]string{
-	MODE_TWENTY:   "Twenty",
-	MODE_BUBBLES:  "Bubbles",
-	MODE_FLIPFLOP: "Flip Flop",
-	MODE_PANIC:    "Panic",
-	MODE_DROP:     "Drop",
-	MODE_THIRTY:   "Thirty",
-	MODE_ZEN:      "Zen",
-}
+// var modeName = map[GameMode]string{
+// 	MODE_TWENTY:   "Twenty",
+// 	MODE_BUBBLES:  "Bubbles",
+// 	MODE_FLIPFLOP: "Flip Flop",
+// 	MODE_PANIC:    "Panic",
+// 	MODE_DROP:     "Drop",
+// 	MODE_THIRTY:   "Thirty",
+// 	MODE_ZEN:      "Zen",
+// }
 
 var _ GameScene = (*Grid)(nil)
 
@@ -384,67 +384,6 @@ func (g *Grid) NotifyCallback(v stroke.StrokeEvent) {
 	}
 }
 
-func (g *Grid) gravityColumn(column int) {
-	coltiles := g.getSortedColumnTiles(column) // eg y are {500 400 300 200 100}
-	// fmt.Println("gravityColumn", column, len(coltiles), "tiles")
-	// for _, t := range tiles {
-	// 	fmt.Println(t.column, t.value, t.pos)
-	// }
-
-	if len(coltiles) == 0 {
-		return
-	}
-
-	for _, t := range coltiles {
-		if t.beingDragged || t.isLerping {
-			return
-		}
-	}
-
-	x := g.gridRectangle.Min.X + (column * g.tileSize)
-	y := g.theBottomLine
-
-	// TODO if a tile has another tile directly below it,
-	// make Tile.velocity = 0
-	// if there is a gap between the tile and the one below it,
-	// increase (or decrease) Tile.velocity
-	// Then, Tile:update with animate the tile
-
-	// the 0th tile will always be on the bottom line
-	if coltiles[0].pos.Y < g.theBottomLine {
-		// coltiles[0].velocity += 1
-		pos := image.Point{X: x, Y: y}
-		coltiles[0].lerpTo(pos)
-	}
-
-	// if the values are the same, tile 1 will be over tile 0 (same y),
-	// otherwise tile 1 will be above (-y) tile 0
-	for i := 1; i < len(coltiles); i++ {
-		t0 := coltiles[i-1]
-		t1 := coltiles[i]
-		// if t1.pos.Y+g.tileSize < t0.pos.Y {
-		// 	t1.velocity += 1
-		// } else {
-		// 	t1.velocity = 0
-		// }
-		if t0.value == t1.value {
-			// don't move y up
-			pos := image.Point{X: x, Y: y}
-			t1.lerpTo(pos)
-		} else {
-			y -= g.tileSize
-			pos := image.Point{X: x, Y: y}
-			t1.lerpTo(pos)
-		}
-	}
-}
-
-func (g *Grid) gravityAllColumns() {
-	for column := 0; column < g.tilesAcross; column++ {
-		g.gravityColumn(column)
-	}
-}
-
 func (g *Grid) mergeAllColumns() {
 	for _, t := range g.tiles {
 		// creates a short delay before tiles merge, which seems pleasing
@@ -689,7 +628,6 @@ func (g *Grid) Update() error {
 		g.ticks += 1
 		g.mergeAllColumns()
 		if g.ticks%2 == 0 {
-			// g.gravityAllColumns()
 			if g.staticTilesOutsideGrid() {
 				g.gameOver = true
 				sound.Play("GameOver")
