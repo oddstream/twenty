@@ -385,37 +385,29 @@ func (g *Grid) NotifyCallback(v stroke.StrokeEvent) {
 }
 
 func (g *Grid) mergeAllColumns() {
-	for _, t := range g.tiles {
-		// creates a short delay before tiles merge, which seems pleasing
-		if t.isLerping {
-			return
-		}
-		// 	// if t.beingDragged {
-		// 	// 	// fmt.Println("tiles are being dragged - no merge for now")
-		// 	// 	return
-		// 	// }
-	}
 	seen := make(map[uint32]*Tile)
 	var merges int
 	for _, t := range g.tiles {
-		oldRow, oldColumn := t.row, t.column
-		t.calcColumnAndRow() // hmmm...
-		if oldRow != t.row || oldColumn != t.column {
-			fmt.Println("row/column has updated mysteriously")
+		if DebugMode {
+			oldRow, oldColumn := t.row, t.column
+			t.calcColumnAndRow()
+			if oldRow != t.row || oldColumn != t.column {
+				fmt.Println("debug check failed: row/column has updated mysteriously")
+			}
 		}
 		if t.row < 0 || t.column < 0 {
 			fmt.Println("merge problem - tile out of bounds", t.column, t.row)
 			sound.Play("GameOver")
-			continue
+			return
 		}
 		key := uint32(t.row)<<8 | uint32(t.column)
-		if seen[key] == nil /*|| t.isLerping || seen[key].isLerping || t.beingDragged || seen[key].beingDragged */ {
+		if seen[key] == nil {
 			seen[key] = t
 		} else {
 			if seen[key].value != t.value {
 				fmt.Println("merge value problem")
 				// we can't merge these two tiles, because their values are not the same
-				sound.Play("GameOver")
+				sound.Play("Tick")
 			}
 			g.tilebag = append(g.tilebag, t.value)
 			seen[key].value++
@@ -627,17 +619,17 @@ func (g *Grid) Update() error {
 	if !(g.gameOver || g.gamePaused) {
 		g.ticks += 1
 		g.mergeAllColumns()
-		if g.ticks%2 == 0 {
+		if g.ticks%10 == 0 {
 			if g.staticTilesOutsideGrid() {
 				g.gameOver = true
 				sound.Play("GameOver")
 			}
-			if g.mode == MODE_ZEN {
+			if !g.newRowPending && g.mode == MODE_ZEN {
 				if g.zenmoves == g.tilesAcross-1 || !g.duplicateTiles() {
 					g.newRowPending = true
 				}
 			}
-		} else {
+		} else if !g.newRowPending {
 			g.secondsRemaining -= ebiten.ActualTPS() / 60.0 / 60.0
 			if g.secondsRemaining <= 0.0 || !g.duplicateTiles() {
 				g.newRowPending = true
