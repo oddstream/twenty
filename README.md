@@ -1,6 +1,6 @@
 # Twenty
 
-A playground for experimenting with falling tile games, based on reimplementing Twenty by Stephen French in Go+Ebiten.
+A playground for experimenting with [tile matching games](https://en.wikipedia.org/wiki/Tile-matching_video_game), based on reimplementing Twenty by Stephen French in Go+Ebiten.
 
 ### It currently doesn't
 

@@ -63,6 +63,9 @@ type Tile struct {
 	dragStart    image.Point
 	beingDragged bool
 
+	// gravity things
+	velocity int // y axis velocity (otherwise it would be velocitx)
+
 	value         int
 	links         uint32
 	particleFrame int
@@ -97,7 +100,7 @@ var tileColorMap = map[int]TileColors{
 
 func NewTile(grid *Grid, pos image.Point, value int) *Tile {
 	t := &Tile{grid: grid, pos: pos, value: value, particleFrame: -1}
-	t.calcRowColumn()
+	t.calcColumnAndRow()
 	return t
 }
 
@@ -134,16 +137,34 @@ func (t *Tile) makeTileImg() *ebiten.Image {
 	return ebiten.NewImageFromImage(dc.Image())
 }
 
-func (t *Tile) calcRowColumn() {
-	y := float64(t.pos.Y - t.grid.gridRectangle.Min.Y)
-	t.row = int(math.Round(y / float64(t.grid.tileSize)))
+func (t *Tile) calcColumnAndRow() {
 	x := float64(t.pos.X - t.grid.gridRectangle.Min.X)
 	t.column = int(math.Round(x / float64(t.grid.tileSize)))
+	y := float64(t.pos.Y - t.grid.gridRectangle.Min.Y)
+	t.row = int(math.Round(y / float64(t.grid.tileSize)))
+}
+
+func (t *Tile) findNearestTileBelow() *Tile {
+	var smallestGap int = math.MaxInt
+	var nearestTile *Tile
+	for _, t0 := range t.grid.tiles {
+		if t0.column != t.column {
+			continue
+		}
+		var diff int = t0.pos.Y - t.pos.Y
+		if diff > 0 {
+			if diff < smallestGap {
+				smallestGap = diff
+				nearestTile = t0
+			}
+		}
+	}
+	return nearestTile
 }
 
 func (t *Tile) setPos(pos image.Point) {
 	t.pos = pos
-	t.calcRowColumn()
+	t.calcColumnAndRow()
 }
 
 func (t *Tile) lerpTo(dst image.Point) {
@@ -166,6 +187,7 @@ func (t *Tile) lerpTo(dst image.Point) {
 		t.src = t.pos
 		t.dst = dst
 		t.lerpStartTime = time.Now()
+		t.velocity = 0
 	}
 }
 
@@ -176,11 +198,12 @@ func (t *Tile) startDrag() {
 		t.dragStart = t.pos
 	}
 	t.beingDragged = true
+	t.velocity = 0
 }
 
 func (t *Tile) dragBy(dx, dy int) {
 	t.pos = t.dragStart.Add(image.Point{dx, dy})
-	t.calcRowColumn()
+	t.calcColumnAndRow()
 }
 
 func (t *Tile) stopDrag() {
@@ -235,6 +258,25 @@ func (t *Tile) update() error {
 			})
 		}
 	}
+	if !(t.isLerping || t.beingDragged) {
+		tb := t.findNearestTileBelow()
+		t.velocity = util.Min(t.velocity+1, t.grid.tileSize)
+		t.pos.Y += t.velocity
+		if t.pos.Y > t.grid.theBottomLine {
+			t.pos.Y = t.grid.theBottomLine
+			t.velocity = 0
+		} else {
+			if tb != nil && (t.pos.Y+t.grid.tileSize) > tb.pos.Y {
+				if tb.value != t.value {
+					t.pos.Y = tb.pos.Y - t.grid.tileSize
+					t.velocity = 0
+				} else {
+					t.velocity = 1
+				}
+			}
+		}
+		t.calcColumnAndRow()
+	}
 	return nil
 }
 
@@ -270,7 +312,7 @@ func (t *Tile) draw(screen *ebiten.Image) {
 	}
 
 	if DebugMode {
-		str := fmt.Sprintf("%d,%d := %d,%d", t.pos.X, t.pos.Y, t.column, t.row)
+		str := fmt.Sprintf("%d,%d := %d,%d %d", t.pos.X, t.pos.Y, t.column, t.row, t.velocity)
 		ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
 	}
 }

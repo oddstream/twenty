@@ -1,3 +1,4 @@
+
 [ ] Tiles pass over other tiles when moving the mouse quickly
 
 [X] finish when there are static tiles outside of the grid rectangle?

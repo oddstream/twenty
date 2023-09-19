@@ -57,6 +57,7 @@ type Grid struct {
 	stroke                          *stroke.Stroke
 	ticks, zenmoves, level          int
 	gameOver, gamePaused            bool
+	newRowPending                   bool
 	imgGrid                         *ebiten.Image
 	imgTimebarBackground            *ebiten.Image
 	imgTimebarForeground            *ebiten.Image
@@ -390,6 +391,10 @@ func (g *Grid) gravityColumn(column int) {
 	// 	fmt.Println(t.column, t.value, t.pos)
 	// }
 
+	if len(coltiles) == 0 {
+		return
+	}
+
 	for _, t := range coltiles {
 		if t.beingDragged || t.isLerping {
 			return
@@ -399,8 +404,15 @@ func (g *Grid) gravityColumn(column int) {
 	x := g.gridRectangle.Min.X + (column * g.tileSize)
 	y := g.theBottomLine
 
+	// TODO if a tile has another tile directly below it,
+	// make Tile.velocity = 0
+	// if there is a gap between the tile and the one below it,
+	// increase (or decrease) Tile.velocity
+	// Then, Tile:update with animate the tile
+
 	// the 0th tile will always be on the bottom line
-	if len(coltiles) > 0 {
+	if coltiles[0].pos.Y < g.theBottomLine {
+		// coltiles[0].velocity += 1
 		pos := image.Point{X: x, Y: y}
 		coltiles[0].lerpTo(pos)
 	}
@@ -410,7 +422,11 @@ func (g *Grid) gravityColumn(column int) {
 	for i := 1; i < len(coltiles); i++ {
 		t0 := coltiles[i-1]
 		t1 := coltiles[i]
-
+		// if t1.pos.Y+g.tileSize < t0.pos.Y {
+		// 	t1.velocity += 1
+		// } else {
+		// 	t1.velocity = 0
+		// }
 		if t0.value == t1.value {
 			// don't move y up
 			pos := image.Point{X: x, Y: y}
@@ -444,7 +460,7 @@ func (g *Grid) mergeAllColumns() {
 	var merges int
 	for _, t := range g.tiles {
 		oldRow, oldColumn := t.row, t.column
-		t.calcRowColumn() // hmmm...
+		t.calcColumnAndRow() // hmmm...
 		if oldRow != t.row || oldColumn != t.column {
 			fmt.Println("row/column has updated mysteriously")
 		}
@@ -489,6 +505,8 @@ func (g *Grid) mergeAllColumns() {
 	}
 }
 
+// getSortedColumnTiles returns a slice of *Tile, sorted into y order,
+// so that the lowest tiles come first eg y = {500 400 300 200 100}
 func (g *Grid) getSortedColumnTiles(column int) []*Tile {
 	var tiles []*Tile
 	for _, t := range g.tiles {
@@ -669,36 +687,36 @@ func (g *Grid) Update() error {
 
 	if !(g.gameOver || g.gamePaused) {
 		g.ticks += 1
+		g.mergeAllColumns()
 		if g.ticks%2 == 0 {
-			g.gravityAllColumns()
-			g.mergeAllColumns()
+			// g.gravityAllColumns()
 			if g.staticTilesOutsideGrid() {
 				g.gameOver = true
 				sound.Play("GameOver")
 			}
 			if g.mode == MODE_ZEN {
 				if g.zenmoves == g.tilesAcross-1 || !g.duplicateTiles() {
-					if g.addNewRow() {
-						g.lerpUp()
-						g.zenmoves = 0
-					} else {
-						g.gameOver = true
-						sound.Play("GameOver")
-					}
+					g.newRowPending = true
 				}
 			}
 		} else {
 			g.secondsRemaining -= ebiten.ActualTPS() / 60.0 / 60.0
 			if g.secondsRemaining <= 0.0 || !g.duplicateTiles() {
-				if g.addNewRow() {
-					g.lerpUp()
-					g.secondsRemaining = g.refreshSeconds
-				} else {
-					g.gameOver = true
-					sound.Play("GameOver")
-				}
+				g.newRowPending = true
 			}
 		}
+	}
+
+	if g.stroke == nil && g.newRowPending {
+		if g.addNewRow() {
+			g.lerpUp()
+			g.secondsRemaining = g.refreshSeconds
+			g.zenmoves = 0
+		} else {
+			g.gameOver = true
+			sound.Play("GameOver")
+		}
+		g.newRowPending = false
 	}
 
 	return nil

@@ -25,24 +25,30 @@ var logoBytes []byte
 
 // Splash represents a game scene.
 type Splash struct {
-	circleImage *ebiten.Image
-	logoImage   *ebiten.Image
-	circlePos   image.Point
-	logoPos     image.Point
-	skew        float64
+	tileImage *ebiten.Image
+	logoImage *ebiten.Image
+	tilePos   image.Point
+	logoPos   image.Point
+	skew      float64
 }
 
 // NewSplash creates and initializes a Splash/GameScene object
 func NewSplash() *Splash {
 	s := &Splash{}
 
-	dc := gg.NewContext(400, 400)
-	dc.SetColor(SplashBackground)
-	dc.DrawCircle(200, 200, 120)
+	dc := gg.NewContext(280, 280)
+
+	dc.SetColor(color.RGBA{R: 0x30, G: 0x30, B: 0x30, A: 0xff})
+	dc.DrawRoundedRectangle(0, 50, 280, 280-50, 50)
 	dc.Fill()
+
+	dc.SetColor(color.RGBA{R: 0x50, G: 0x50, B: 0x50, A: 0xff})
+	dc.DrawRoundedRectangle(0, 0, 280, 280-50, 50)
+	dc.Fill()
+
 	dc.Stroke()
 	img := dc.Image()
-	s.circleImage = ebiten.NewImageFromImage(img)
+	s.tileImage = ebiten.NewImageFromImage(img)
 
 	img, _, err := image.Decode(bytes.NewReader(logoBytes))
 	if err != nil {
@@ -59,12 +65,10 @@ func (s *Splash) Layout(outsideWidth, outsideHeight int) (int, int) {
 	xCenter := outsideWidth / 2
 	yCenter := outsideHeight / 2
 
-	// cx, cy := s.circleImage.Size()
-	cx := s.circleImage.Bounds().Dx()
-	cy := s.circleImage.Bounds().Dy()
-	s.circlePos = image.Point{X: xCenter - (cx / 2), Y: yCenter - (cy / 2)}
+	cx := s.tileImage.Bounds().Dx()
+	cy := s.tileImage.Bounds().Dy()
+	s.tilePos = image.Point{X: xCenter - (cx / 2), Y: yCenter - (cy / 2)}
 
-	// lx, ly := s.logoImage.Size()
 	lx := s.logoImage.Bounds().Dx()
 	ly := s.logoImage.Bounds().Dy()
 	s.logoPos = image.Point{X: xCenter - (lx / 2), Y: yCenter - 4 - (ly / 2)}
@@ -81,8 +85,8 @@ func (s *Splash) Update() error {
 		}
 	}
 
-	if s.skew < 90 {
-		s.skew++
+	if s.skew < 90.0 {
+		s.skew += 1.5
 	} else {
 		theSM.Switch(NewMenu())
 	}
@@ -98,21 +102,17 @@ func (s *Splash) Draw(screen *ebiten.Image) {
 
 	{
 		op := &ebiten.DrawImageOptions{}
-		// sx, sy := s.circleImage.Size()
-		// sx, sy = sx/2, sy/2
-		sx := s.circleImage.Bounds().Dx() / 2
-		sy := s.circleImage.Bounds().Dy() / 2
+		sx := s.tileImage.Bounds().Dx() / 2
+		sy := s.tileImage.Bounds().Dy() / 2
 		op.GeoM.Translate(float64(-sx), float64(-sy))
 		op.GeoM.Scale(0.5, 0.5)
 		op.GeoM.Skew(skewRadians, skewRadians)
 		op.GeoM.Translate(float64(sx), float64(sy))
-		op.GeoM.Translate(float64(s.circlePos.X), float64(s.circlePos.Y))
-		screen.DrawImage(s.circleImage, op)
+		op.GeoM.Translate(float64(s.tilePos.X), float64(s.tilePos.Y))
+		screen.DrawImage(s.tileImage, op)
 	}
 	{
 		op := &ebiten.DrawImageOptions{}
-		// sx, sy := s.logoImage.Size()
-		// sx, sy = sx/2, sy/2
 		sx := s.logoImage.Bounds().Dx() / 2
 		sy := s.logoImage.Bounds().Dy() / 2
 		op.GeoM.Translate(float64(-sx), float64(-sy))
