@@ -50,8 +50,7 @@ const aniSpeed = 0.25
 type Tile struct {
 	grid *Grid
 	// pos of card on grid
-	pos         image.Point
-	row, column int
+	pos image.Point
 
 	// lerping things
 	src           image.Point
@@ -66,8 +65,8 @@ type Tile struct {
 	// gravity things
 	velocity int // y axis velocity (otherwise it would be velocitx)
 
-	value         int
-	links         uint32
+	value int
+	// links         uint32
 	particleFrame int
 }
 
@@ -100,7 +99,6 @@ var tileColorMap = map[int]TileColors{
 
 func NewTile(grid *Grid, pos image.Point, value int) *Tile {
 	t := &Tile{grid: grid, pos: pos, value: value, particleFrame: -1}
-	t.calcColumnAndRow()
 	return t
 }
 
@@ -137,18 +135,43 @@ func (t *Tile) makeTileImg() *ebiten.Image {
 	return ebiten.NewImageFromImage(dc.Image())
 }
 
-func (t *Tile) calcColumnAndRow() {
-	x := float64(t.pos.X - t.grid.gridRectangle.Min.X)
-	t.column = int(math.Round(x / float64(t.grid.tileSize)))
+func (t *Tile) row() int {
 	y := float64(t.pos.Y - t.grid.gridRectangle.Min.Y)
-	t.row = int(math.Round(y / float64(t.grid.tileSize)))
+	return int(math.Round(y / float64(t.grid.tileSize)))
+}
+
+func (t *Tile) column() int {
+	x := float64(t.pos.X - t.grid.gridRectangle.Min.X)
+	return int(math.Round(x / float64(t.grid.tileSize)))
+}
+
+func (t *Tile) constrainToGrid() {
+	t.pos.X = util.Max(t.pos.X, t.grid.gridRectangle.Min.X)
+	t.pos.X = util.Min(t.pos.X, t.grid.gridRectangle.Max.X-t.grid.tileSize)
+	t.pos.Y = util.Max(t.pos.Y, t.grid.gridRectangle.Min.Y)
+	t.pos.Y = util.Min(t.pos.Y, t.grid.gridRectangle.Max.Y-t.grid.tileSize)
+}
+
+func (t1 *Tile) verbotenOverlap() bool {
+	for _, t2 := range t1.grid.tiles {
+		if t2 == t1 {
+			continue
+		}
+		if t2.value == t1.value {
+			continue
+		}
+		if t1.rectangle().Overlaps(t2.rectangle()) {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *Tile) findNearestTileBelow() *Tile {
 	var smallestGap int = math.MaxInt
 	var nearestTile *Tile
 	for _, t0 := range t.grid.tiles {
-		if t0.column != t.column {
+		if t0.column() != t.column() {
 			continue
 		}
 		var diff int = t0.pos.Y - t.pos.Y
@@ -164,7 +187,6 @@ func (t *Tile) findNearestTileBelow() *Tile {
 
 func (t *Tile) setPos(pos image.Point) {
 	t.pos = pos
-	t.calcColumnAndRow()
 }
 
 func (t *Tile) lerpTo(dst image.Point) {
@@ -203,7 +225,7 @@ func (t *Tile) startDrag() {
 
 func (t *Tile) dragBy(dx, dy int) {
 	t.pos = t.dragStart.Add(image.Point{dx, dy})
-	t.calcColumnAndRow()
+	t.constrainToGrid()
 }
 
 func (t *Tile) stopDrag() {
@@ -222,8 +244,8 @@ func (t *Tile) wasDragged() bool {
 // rectangle - more of a hitbox than a rectangle
 func (t *Tile) rectangle() image.Rectangle {
 	sz := t.grid.tileSize
-	hgap := sz / 10
-	vgap := sz / 10
+	hgap := sz / 8
+	vgap := sz / 8
 	return image.Rectangle{
 		Min: image.Point{t.pos.X + hgap, t.pos.Y + vgap},
 		Max: image.Point{t.pos.X + sz - hgap*2, t.pos.Y + sz - vgap*2}}
@@ -238,7 +260,7 @@ func (t *Tile) startParticles() {
 }
 
 func (t *Tile) snapToColumn() {
-	t.pos.X = t.grid.gridRectangle.Min.X + (t.column * t.grid.tileSize)
+	t.pos.X = t.grid.gridRectangle.Min.X + (t.column() * t.grid.tileSize)
 }
 
 func (t *Tile) update() error {
@@ -273,14 +295,17 @@ func (t *Tile) update() error {
 				}
 			}
 		}
-		t.calcColumnAndRow()
 	}
 	return nil
 }
 
 func (t *Tile) draw(screen *ebiten.Image) {
 
-	t.drawLinks(screen)
+	if t.pos.Y < t.grid.gridRectangle.Min.Y {
+		return
+	}
+
+	// t.drawLinks(screen)
 
 	img, ok := theTileImgLib[t.value]
 	if !ok {
@@ -310,7 +335,7 @@ func (t *Tile) draw(screen *ebiten.Image) {
 	}
 
 	if DebugMode {
-		str := fmt.Sprintf("%d,%d := %d,%d %d", t.pos.X, t.pos.Y, t.column, t.row, t.velocity)
+		str := fmt.Sprintf("%d,%d := %d,%d %d", t.pos.X, t.pos.Y, t.column(), t.row(), t.velocity)
 		ebitenutil.DebugPrintAt(screen, str, t.pos.X, t.pos.Y)
 	}
 }

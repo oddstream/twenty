@@ -14,6 +14,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"oddstream.games/twenty/sound"
 	"oddstream.games/twenty/stroke"
+	"oddstream.games/twenty/util"
 )
 
 type GameMode int
@@ -214,7 +215,7 @@ func (g *Grid) lerpUp() {
 
 func (g *Grid) findTile(column, row int) *Tile {
 	for _, t := range g.tiles {
-		if t.row == row && t.column == column {
+		if t.row() == row && t.column() == column {
 			return t
 		}
 	}
@@ -289,47 +290,50 @@ func (g *Grid) strokeStart(v stroke.StrokeEvent) {
 	}
 }
 
+func (g *Grid) interpolatedDrag(t *Tile, oldPos, newPos image.Point) {
+	// let's say tile size is 100
+	// we want to test every 100/2 = 50
+	// if dist is 50
+	// if dist is 100
+	// if dist is 200
+	dist := util.Distance(oldPos, newPos)
+	steps := dist / float64(g.tileSize)
+	fmt.Printf("size %d, dist %f, steps %f\n", g.tileSize, dist, steps)
+	for n := 0.1; n <= 1.0; n += 0.1 {
+		prevPos := t.pos
+		x := int(util.Lerp(float64(oldPos.X), float64(newPos.X), n))
+		y := int(util.Lerp(float64(oldPos.Y), float64(newPos.Y), n))
+		t.setPos(image.Point{x, y})
+		t.constrainToGrid()
+		if t.verbotenOverlap() {
+			// fmt.Println("Verboten overlap")
+			// sound.Play("Tick")
+			t.setPos(prevPos)
+			break
+		}
+	}
+}
+
+func (g *Grid) shortDrag(t *Tile, oldPos, newPos image.Point) {
+	t.setPos(newPos)
+	t.constrainToGrid()
+	if t.verbotenOverlap() {
+		t.setPos(oldPos)
+	}
+}
+
 func (g *Grid) strokeMove(v stroke.StrokeEvent) {
 	switch obj := g.stroke.DraggedObject().(type) {
 	case *Tile:
-		tdragged := obj // to make this more readable
-		oldPos := tdragged.pos
-
+		t := obj // just to make this more readable
+		oldPos := t.pos
 		dx, dy := v.Stroke.PositionDiff()
-
-		// var tdraggers []*Tile
-		// tdraggers = g.appendLinkedTiles(tdraggers, tdragged)
-		// for _, t := range tdraggers {
-		// 	t.dragBy(dx, dy)
-		// }
-
-		// tdragged.dragBy(v.Stroke.PositionDiff())
-		tdragged.dragBy(dx, dy)
-
-		// disallow move if tile goes off grid canvas
-		if !g.tileCompletelyInGrid(tdragged) {
-			tdragged.setPos(oldPos)
-			// for _, t := range tdraggers {
-			// 	t.dragBy(-dx, -dy)
-			// }
-			// fmt.Println("dragged tile going off grid")
-			break
-		}
-
-		// disallow move if tile moves over another tile with different value
-		tdst, _ := g.largestTileIntersection(tdragged)
-		if tdst == nil {
-			// move to an empty area, that's ok
-		} else if tdst.value == tdragged.value {
-			// move to another tile with same value, that's ok
+		newPos := t.dragStart.Add(image.Point{dx, dy})
+		dist := util.DistanceInt(oldPos.X, oldPos.Y, newPos.X, newPos.Y)
+		if dist > g.tileSize/2 {
+			g.interpolatedDrag(t, oldPos, newPos)
 		} else {
-			// overlapping with a tile with a different value, verboten!
-			tdragged.setPos(oldPos)
-
-			// for _, t := range tdraggers {
-			// 	t.dragBy(-dx, -dy)
-			// }
-			// fmt.Println("dragged tile overlap with", tdst.value)
+			g.shortDrag(t, oldPos, newPos)
 		}
 	}
 }
@@ -388,19 +392,11 @@ func (g *Grid) mergeAllColumns() {
 	seen := make(map[uint32]*Tile)
 	var merges int
 	for _, t := range g.tiles {
-		if DebugMode {
-			oldRow, oldColumn := t.row, t.column
-			t.calcColumnAndRow()
-			if oldRow != t.row || oldColumn != t.column {
-				fmt.Println("debug check failed: row/column has updated mysteriously")
-			}
-		}
-		if t.row < 0 || t.column < 0 {
-			fmt.Println("merge problem - tile out of bounds", t.column, t.row)
-			sound.Play("GameOver")
+		if t.column() < 0 || t.column() > g.tilesDown {
+			fmt.Println("merge problem - tile out of bounds - game over?", t.column())
 			return
 		}
-		key := uint32(t.row)<<8 | uint32(t.column)
+		key := uint32(t.row())<<8 | uint32(t.column())
 		if seen[key] == nil {
 			seen[key] = t
 		} else {
@@ -441,7 +437,7 @@ func (g *Grid) mergeAllColumns() {
 func (g *Grid) getSortedColumnTiles(column int) []*Tile {
 	var tiles []*Tile
 	for _, t := range g.tiles {
-		if t.column == column {
+		if t.column() == column {
 			tiles = append(tiles, t)
 		}
 	}
@@ -452,18 +448,6 @@ func (g *Grid) getSortedColumnTiles(column int) []*Tile {
 	// 	return tiles[a].pos.Y > tiles[b].pos.Y
 	// })
 	return tiles
-}
-
-func (g *Grid) rectangleContainsStaticTiles(rect image.Rectangle) bool {
-	for _, t := range g.tiles {
-		if t.isLerping || t.beingDragged {
-			continue
-		}
-		if rect.Overlaps(t.rectangle()) {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *Grid) staticTilesOutsideGrid() bool {

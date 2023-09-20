@@ -27,7 +27,7 @@ func (g *Grid) undoPop() (undoState, error) {
 func (g *Grid) undoPack() undoState {
 	var state undoState = make([]undoTile, 0, len(g.tiles))
 	for _, t := range g.tiles {
-		state = append(state, undoTile{x: t.column, y: t.row, v: t.value})
+		state = append(state, undoTile{x: t.column(), y: t.row(), v: t.value})
 	}
 	return state
 }

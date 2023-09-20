@@ -158,11 +158,11 @@ func Distance(p1, p2 image.Point) float64 {
 
 // DistanceInt finds the length of the hypotenuse between two points.
 // Formula is the square root of (x2 - x1)^2 + (y2 - y1)^2
-// func DistanceInt(x1, y1, x2, y2 int) int {
-// 	first := math.Pow(float64(x2)-float64(x1), 2)
-// 	second := math.Pow(float64(y2)-float64(y1), 2)
-// 	return int(math.Sqrt(first + second))
-// }
+func DistanceInt(x1, y1, x2, y2 int) int {
+	first := math.Pow(float64(x2-x1), 2)
+	second := math.Pow(float64(y2-y1), 2)
+	return int(math.Sqrt(first + second))
+}
 
 // OverlapArea returns the intersection of two rectangles
 // func OverlapArea(x1, y1, x2, y2, X1, Y1, X2, Y2 int) int {
