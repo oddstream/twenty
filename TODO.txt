@@ -1,8 +1,5 @@
-[ ] Tile.possibleNewPos() bool
-	returns false if outside grid rectangle
-	checks all other tiles, returns false of overlaps any tile with different value
 
-[ ] Tiles pass over other tiles when moving the mouse quickly
+[X] Tiles pass over other tiles when moving the mouse quickly
 
 [X] finish when there are static tiles outside of the grid rectangle?
 	maybe no need for header and footer
