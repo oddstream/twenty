@@ -161,6 +161,7 @@ func (t1 *Tile) verbotenOverlap() bool {
 			continue
 		}
 		if t1.rectangle().Overlaps(t2.rectangle()) {
+			// if t1.centerPoint().In(t2.rectangle()) {
 			return true
 		}
 	}
@@ -253,6 +254,10 @@ func (t *Tile) rectangle() image.Rectangle {
 	// 	Min: t.pos,
 	// 	Max: image.Point{t.pos.X + t.grid.tileSize, t.pos.Y + t.grid.tileSize},
 	// }
+}
+
+func (t *Tile) centerPoint() image.Point {
+	return image.Point{t.pos.X + t.grid.tileSize/2, t.pos.Y + t.grid.tileSize/2}
 }
 
 func (t *Tile) startParticles() {

@@ -296,10 +296,10 @@ func (g *Grid) interpolatedDrag(t *Tile, oldPos, newPos image.Point) {
 	// if dist is 50
 	// if dist is 100
 	// if dist is 200
-	dist := util.Distance(oldPos, newPos)
-	steps := dist / float64(g.tileSize)
-	fmt.Printf("size %d, dist %f, steps %f\n", g.tileSize, dist, steps)
-	for n := 0.1; n <= 1.0; n += 0.1 {
+	// dist := util.Distance(oldPos, newPos)
+	// steps := dist / float64(g.tileSize)
+	// fmt.Printf("size %d, dist %f, steps %f\n", g.tileSize, dist, steps)
+	for _, n := range [4]float64{0.25, 0.5, 0.75, 1.0} {
 		prevPos := t.pos
 		x := int(util.Lerp(float64(oldPos.X), float64(newPos.X), n))
 		y := int(util.Lerp(float64(oldPos.Y), float64(newPos.Y), n))
@@ -455,6 +455,7 @@ func (g *Grid) staticTilesOutsideGrid() bool {
 		if t.isLerping || t.beingDragged {
 			continue
 		}
+		// if !t.centerPoint().In(g.gridRectangle) {
 		if !g.gridRectangle.Overlaps(t.rectangle()) {
 			return true
 		}

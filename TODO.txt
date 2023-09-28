@@ -1,3 +1,7 @@
+THIS IS A DOOMED PROJECT BECAUSE
+PLAYING WITH A MOUSE IS TOO AWKWARD WHEN COMPARED TO PLAYING WITH TOUCH
+
+[-] replace Tile.rectangle with center points
 
 [X] Tiles pass over other tiles when moving the mouse quickly
 
